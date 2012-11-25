@@ -3,6 +3,8 @@ import neurpy as neur
 import numpy as np
 from sklearn import datasets
 from sklearn import preprocessing as pre
+import matplotlib.pyplot as plt
+
 
 class TestNuerpy(unittest.TestCase):
     def test_cross_validation_sets(self):
@@ -120,25 +122,82 @@ class TestNuerpy(unittest.TestCase):
         self.equalish(grads[0], grads_check[0])
         self.equalish(grads[1], grads_check[1])
 
-    def test_gradient_decsent(self):
+    def test_softmax(self):
+        X = np.array([[1, 2, 3], [2, 3, 4]])
+        theta = np.array(([0.040281,  -0.034031,   0.075200,   0.071569],
+                            [0.013256,   0.092686,  -0.070016,   0.093055]))
+        theta2 = np.array([[0.1150530,   0.1013294,  -0.0686610],
+                           [-0.0459608,   0.0020356,  -0.0995257],
+                           [0.0948434,   0.0686487,   0.0481420]])
+        h_x, a = neur.forward_prop(X, [theta, theta2])
+        res = neur.softmax(h_x)
+        self.equalish(np.sum(res, axis=1), [1,1])
+
+    def est_gradient_decsent(self):
         iris = datasets.load_iris()
         X = iris.data
-        y = self.all_to_sparse( iris.target, max(iris.target) + 1 )
+
         scaler = pre.Scaler()
         X = scaler.fit_transform(X)
 
-        neur.gradient_decent(np.array(X),np.array(y))
+        y = self.all_to_sparse( iris.target, max(iris.target) + 1 )
+        X, y, X_val, y_val, X_test, y_test = neur.cross_validation_sets(np.array(X), np.array(y))
+        thetas, costs, val_costs = neur.gradient_decent(np.array(X), 
+                                                        np.array(y), 
+                                                        np.array(X_val),
+                                                        np.array(y_val))
 
+    def test_mini_batch_gradient_descent(self):
+        digits = datasets.load_digits()
+        # iris = datasets.load_iris()
+        X = digits.images.reshape((digits.images.shape[0], -1))
 
+        scaler = pre.Scaler()
+        X = scaler.fit_transform(X)
+
+        y = self.all_to_sparse( digits.target, max(digits.target) + 1 )
+        X, y, X_val, y_val, X_test, y_test = neur.cross_validation_sets(np.array(X), np.array(y))
+        thetas, costs, val_costs = neur.mini_batch_gradient_decent(np.array(X), 
+                                                                   np.array(y),
+                                                                   hidden_layer_sz = 11,
+                                                                   iter = 1000,
+                                                                   wd_coef = 0.000001,
+                                                                   learning_rate = 0.35,
+                                                                   momentum_multiplier = 0.9,
+                                                                   rand_init_epsilon = 0.000012,
+                                                                   do_early_stopping = True,
+                                                                   X_val = np.array(X_val),
+                                                                   y_val = np.array(y_val))
+        h_x, a = neur.forward_prop(X_test, thetas)
+        print "percentage correct predictions: ", self.percent_equal(self.map_to_max_binary_result(h_x), y_test)
+        print "training error:",   costs[-1:][0]
+        print "validation error:", val_costs[-1:][0]
+        print "lowest validation error:", min(val_costs)
+        plt.plot(costs, label='cost')
+        plt.plot(val_costs, label='val cost')
+        plt.legend()
+        plt.ylabel('error rate')
+        plt.show()        
         
     def equalish(self,a,b):
         dif = np.abs(a - b)
         dif.shape = a.size
         self.assertTrue(np.all(dif < 0.00001))
-        
+
     def equalish_atom(self, a, b):
         self.assertTrue(abs(a - b) < 0.00001)
-    
+
+    def percent_equal(self, a, b):
+        num_equal = sum(map(lambda x,y: 1 if np.equal(x,y).all() else 0, a, b))
+        return float(num_equal) / len(a)
+
+    def map_to_max_binary_result(self,h_x):
+        maxes = map(max, h_x)
+        res = []
+        for i in range(len(maxes)):
+           res.append(h_x[i].tolist().index(maxes[i]))
+        return self.all_to_sparse(res, max(res) + 1)
+
     def convert_to_sparse(self, ex, num_class):
         res = [0] * num_class
         res[ex] = 1

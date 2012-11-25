@@ -22,6 +22,15 @@ def rand_init_theta(input_size, output_size, epsilon = 0.12):
 def sigmoid(z):
     return 1.0 / (1.0 + np.exp(z * -1))
 
+def softmax(inputs):
+    res = np.max(inputs, axis=1)
+    res = res.repeat(len(inputs[0, :]))
+    res.shape = len(inputs), len(inputs[0, :])
+    out =  np.exp(inputs - res)
+    rout = np.sum(out, axis=1).repeat(len(inputs[0,:]))
+    rout.shape = len(inputs), len(inputs[0, :])
+    return out / rout
+    
 def forward_prop(x, thetas):
     rows, columns = x.shape
     num_thetas = len(thetas)
@@ -90,7 +99,54 @@ def backprop(activations, y, thetas, lamb):
 
   return gradients
 
-def gradient_decent(X, y):
+def mini_batch_gradient_decent(X, y, 
+                               hidden_layer_sz = 2, 
+                               iter = 1000, 
+                               wd_coef = 0.0,
+                               learning_rate = 0.35, 
+                               momentum_multiplier = 0.9,
+                               rand_init_epsilon = 0.12,
+                               do_early_stopping = False,
+                               X_val = [], y_val = []):
+    # one hidden layer
+    input_layer_sz = len(X[0])
+    output_layer_sz = len(y[0])
+    sizes = [input_layer_sz, hidden_layer_sz, output_layer_sz]
+    theta1 = rand_init_theta(input_layer_sz, hidden_layer_sz, rand_init_epsilon)
+    theta2 = rand_init_theta(hidden_layer_sz, output_layer_sz, rand_init_epsilon)
+    thetas = [theta1, theta2]
+    momentum_speeds = map(lambda x: x * 0, thetas)
+    costs = []
+    val_costs = []
+    if do_early_stopping:
+      best_so_far = {'thetas': [], 'validation_loss': 100000, 'after_n_iters': 0}
+
+    for i in range(iter):
+        h_x, a = forward_prop(X, thetas)
+        cost = logistic_squared_distance_with_wd(h_x, y, thetas, wd_coef)
+        costs.append(cost)
+        if X_val.any():
+          vh_x, va = forward_prop(X_val, thetas)
+          vcost = logistic_squared_distance_with_wd(vh_x, y_val, thetas, wd_coef)
+          val_costs.append(vcost)
+        if X_val.any() and do_early_stopping and (vcost < best_so_far['validation_loss']):
+            best_so_far['thetas'] = map(lambda x: x.copy(), thetas)
+            best_so_far['validation_loss'] = vcost
+            best_so_far['after_n_iters'] = i
+            
+        # update thetas
+        gradients = backprop(a, y, thetas, wd_coef)
+        for ix in range(len(thetas)):
+            momentum_speeds[ix] = momentum_speeds[ix] * momentum_multiplier - gradients[ix]
+            thetas[ix] = thetas[ix] + learning_rate * momentum_speeds[ix]
+    if do_early_stopping and (len(best_so_far['thetas']) > 0):
+      thetas = best_so_far['thetas']
+      print 'Early stopping: validation loss was lowest after ', best_so_far['after_n_iters'], ' iterations. We chose the model that we had then.\n'
+
+    return thetas, costs, val_costs
+
+
+def gradient_decent(X, y, X_val = [], y_val = []):
     # one hidden layer
     lamb = 0.01
     input_layer_sz = len(X[0])
@@ -100,19 +156,27 @@ def gradient_decent(X, y):
     theta1 = rand_init_theta(input_layer_sz, hidden_layer_sz, 0.12)
     theta2 = rand_init_theta(hidden_layer_sz, output_layer_sz, 0.12)
     thetas = [theta1, theta2]
-    learning_rate = 0.35
+    learning_rate = 0.05
     momentum_speeds = map(lambda x: x * 0, thetas)
     momentum_multiplier = 0.9
+    costs = []
+    val_costs = []
 
     for i in range(1000):
         h_x, a = forward_prop(X, thetas)
+        h_x = softmax(h_x)
         cost = logistic_squared_distance_with_wd(h_x, y, thetas, lamb)
-        print cost
+        costs.append(cost)
+        if X_val.any():
+          vh_x, va = forward_prop(X_val, thetas)
+          vh_x = softmax(vh_x)
+          vcost = logistic_squared_distance_with_wd(vh_x, y_val, thetas, lamb)
+          val_costs.append(vcost)
         gradients = backprop(a, y, thetas, lamb)
         for i in range(len(thetas)):
             momentum_speeds[i] = momentum_speeds[i] * momentum_multiplier - gradients[i]
             thetas[i] = thetas[i] + learning_rate * momentum_speeds[i]
-
+    return thetas, costs, val_costs
 
 def gradient_check(X, y, thetas, cost_func):
     epsilon = 0.0001
