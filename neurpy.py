@@ -99,6 +99,62 @@ def backprop(activations, y, thetas, lamb):
 
   return gradients
 
+def create_dropout_indices(thetas):
+    expanded_indices = []
+    hid_layer_size = len(thetas[0])
+    hid_layer_indices = map(int,np.random.rand(np.ceil(hid_layer_size / 2)) * hid_layer_size)
+    expanded_indices.append([hid_layer_indices, range(thetas[0].shape[1])])
+    row = False
+    for i in range(1,len(thetas)):
+        if row:
+            hid_layer_size = len(thetas[i])
+            hid_layer_indices = map(int,np.random.rand(np.ceil(hid_layer_size / 2)) * hid_layer_size)
+            expanded_indices.append([hid_layer_indices, range(thetas[i].shape[1])])
+        else:
+            column_indices = [0] + map(lambda x: x + 1, hid_layer_indices) # have to account for bias column
+            expanded_indices.append([range(thetas[i].shape[0]), column_indices])
+        row = not row
+    return expanded_indices
+
+def dropout_thetas(thetas):
+    # now there are 2 thetas
+    # take rows out of the first theta
+    # take columns out of second theta
+    selected_indices = []
+    new_thetas = []
+    hid_layer_size = len(thetas[0])
+    hid_layer_indices = map(int,np.random.rand(np.ceil(hid_layer_size / 2)) * hid_layer_size)
+    selected_indices.append(hid_layer_indices)
+    new_thetas.append(thetas[0][hid_layer_indices,:])
+    row = False
+
+    for i in range(1,len(thetas)):
+        if row:
+            hid_layer_size = len(thetas[i])
+            hid_layer_indices = map(int,np.random.rand(np.ceil(hid_layer_size / 2)) * hid_layer_size)
+            selected_indices.append(hid_layer_indices)          
+            new_thetas.append(thetas[i][hid_layer_indices,:])
+        else:
+            column_indices = [0] + map(lambda x: x + 1, hid_layer_indices) # have to account for bias column
+            new_thetas.append(thetas[i][:, column_indices])
+        row = not row
+
+    return new_thetas, selected_indices
+
+def recover_dropped_out_thetas(thetas, dropped_out_thetas, selected_indices):
+    thetas[0][selected_indices[0], :] = dropped_out_thetas[0] 
+    row = False
+    for i in range(1,len(thetas)):
+      if row:
+          thetas[i][selected_indices[i - 1], :] = dropped_out_thetas[i] 
+      else:
+          column_indices = [0] + map(lambda x: x + 1, selected_indices[i - 1]) # have to account for bias column
+          thetas[i][:, column_indices] = dropped_out_thetas[i]
+      row = not row
+    return thetas
+
+
+
 def mini_batch_gradient_decent(X, y, 
                                hidden_layer_sz = 2, 
                                iter = 1000, 
@@ -107,6 +163,7 @@ def mini_batch_gradient_decent(X, y,
                                momentum_multiplier = 0.9,
                                rand_init_epsilon = 0.12,
                                do_early_stopping = False,
+                               do_dropout = False,
                                X_val = [], y_val = []):
     # one hidden layer
     input_layer_sz = len(X[0])
@@ -120,25 +177,31 @@ def mini_batch_gradient_decent(X, y,
     val_costs = []
     if do_early_stopping:
       best_so_far = {'thetas': [], 'validation_loss': 100000, 'after_n_iters': 0}
-
+    selected_indices = []
     for i in range(iter):
-        h_x, a = forward_prop(X, thetas)
-        cost = logistic_squared_distance_with_wd(h_x, y, thetas, wd_coef)
+        # set up thetas for dropout
+        in_use_thetas, selected_indices = dropout_thetas(thetas, selected_indices)
+        print 'selected', selected_indices
+        h_x, a = forward_prop(X, in_use_thetas)
+        cost = logistic_squared_distance_with_wd(h_x, y, in_use_thetas, wd_coef)
         costs.append(cost)
         if X_val.any():
-          vh_x, va = forward_prop(X_val, thetas)
-          vcost = logistic_squared_distance_with_wd(vh_x, y_val, thetas, wd_coef)
-          val_costs.append(vcost)
+            # lets get the validation cost for the whole model at first
+            vh_x, va = forward_prop(X_val, thetas)
+            vcost = logistic_squared_distance_with_wd(vh_x, y_val, thetas, wd_coef)
+            val_costs.append(vcost)
         if X_val.any() and do_early_stopping and (vcost < best_so_far['validation_loss']):
             best_so_far['thetas'] = map(lambda x: x.copy(), thetas)
             best_so_far['validation_loss'] = vcost
             best_so_far['after_n_iters'] = i
             
         # update thetas
-        gradients = backprop(a, y, thetas, wd_coef)
-        for ix in range(len(thetas)):
+        gradients = backprop(a, y, in_use_thetas, wd_coef)
+        for ix in range(len(in_use_thetas)):
             momentum_speeds[ix] = momentum_speeds[ix] * momentum_multiplier - gradients[ix]
-            thetas[ix] = thetas[ix] + learning_rate * momentum_speeds[ix]
+            in_use_thetas[ix] = in_use_thetas[ix] + learning_rate * momentum_speeds[ix]
+        print "thetas before recover", thetas[0].shape, thetas[1].shape
+        thetas = recover_dropped_out_thetas(thetas, in_use_thetas, selected_indices)
     if do_early_stopping and (len(best_so_far['thetas']) > 0):
       thetas = best_so_far['thetas']
       print 'Early stopping: validation loss was lowest after ', best_so_far['after_n_iters'], ' iterations. We chose the model that we had then.\n'

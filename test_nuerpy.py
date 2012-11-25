@@ -133,6 +133,53 @@ class TestNuerpy(unittest.TestCase):
         res = neur.softmax(h_x)
         self.equalish(np.sum(res, axis=1), [1,1])
 
+    def test_create_dropout_indices(self):
+        theta = np.array(([0.040281,  -0.034031,   0.075200,   0.071569],
+                          [0.013256,   0.092686,  -0.070016,   0.093055]))
+        theta2 = np.array([[0.1150530,   0.1013294,  -0.0686610],
+                           [-0.0459608,   0.0020356,  -0.0995257],
+                           [0.0948434,   0.0686487,   0.0481420]])
+        theta3 = np.array([[0.1007928,   0.1168322,  -0.0497762,  -0.0658923],
+                           [-0.0841614,  -0.0378504,  -0.0918123,   0.0031022]])
+        print neur.create_dropout_indices([theta, theta2, theta3])
+
+    def test_dropout_thetas(self):
+        theta = np.array(([0.040281,  -0.034031,   0.075200,   0.071569],
+                          [0.013256,   0.092686,  -0.070016,   0.093055]))
+        theta2 = np.array([[0.1150530,   0.1013294,  -0.0686610],
+                           [-0.0459608,   0.0020356,  -0.0995257],
+                           [0.0948434,   0.0686487,   0.0481420]])
+        theta3 = np.array([[0.1007928,   0.1168322,  -0.0497762,  -0.0658923],
+                           [-0.0841614,  -0.0378504,  -0.0918123,   0.0031022]])
+        dropped_thetas, indices = neur.dropout_thetas([theta, theta2, theta3])
+        print dropped_thetas
+        dropped_thetas[0] = dropped_thetas[0] + 10
+        dropped_thetas[1] = dropped_thetas[1] + 10
+        dropped_thetas[2] = dropped_thetas[2] + 10
+        theta_orig = theta.copy()
+        theta2_orig = theta2.copy()
+        theta3_orig = theta3.copy()
+        thetas = neur.recover_dropped_out_thetas([theta, theta2, theta3], dropped_thetas, indices)
+
+        equal_indices = list(set(range(theta_orig.shape[0])) - set(indices[0]))
+        self.not_equalish(theta_orig[indices[0], :], thetas[0][indices[0], :])
+        self.equalish(theta_orig[equal_indices, :], thetas[0][equal_indices, :])
+
+        not_equal_indices = [0] + map(lambda x: x + 1,(indices[0]))
+        equal_indices = list(set(range(theta_orig.shape[0] + 1)) - set(not_equal_indices))
+        self.not_equalish(theta2_orig[:, not_equal_indices], thetas[1][:, not_equal_indices])
+        self.equalish(theta2_orig[:, equal_indices], thetas[1][:, equal_indices])
+        
+        equal_indices = list(set(range(theta3_orig.shape[0])) - set(indices[1]))
+        self.not_equalish(theta3_orig[indices[1], :], thetas[2][indices[1], :])
+        self.equalish(theta3_orig[equal_indices, :], thetas[2][equal_indices, :])
+        
+        self.equalish(theta, thetas[0])
+        self.equalish(theta2, thetas[1])
+        self.equalish(theta3, thetas[2])
+
+        
+
     def est_gradient_decsent(self):
         iris = datasets.load_iris()
         X = iris.data
@@ -147,7 +194,7 @@ class TestNuerpy(unittest.TestCase):
                                                         np.array(X_val),
                                                         np.array(y_val))
 
-    def test_mini_batch_gradient_descent(self):
+    def est_mini_batch_gradient_descent(self):
         digits = datasets.load_digits()
         # iris = datasets.load_iris()
         X = digits.images.reshape((digits.images.shape[0], -1))
@@ -161,7 +208,7 @@ class TestNuerpy(unittest.TestCase):
                                                                    np.array(y),
                                                                    hidden_layer_sz = 11,
                                                                    iter = 1000,
-                                                                   wd_coef = 0.000001,
+                                                                   wd_coef = 0.0001,
                                                                    learning_rate = 0.35,
                                                                    momentum_multiplier = 0.9,
                                                                    rand_init_epsilon = 0.000012,
@@ -181,8 +228,11 @@ class TestNuerpy(unittest.TestCase):
         
     def equalish(self,a,b):
         dif = np.abs(a - b)
-        dif.shape = a.size
-        self.assertTrue(np.all(dif < 0.00001))
+        self.assertTrue(np.all(dif.flatten() < 0.00001))
+
+    def not_equalish(self,a,b):
+        dif = np.abs(a - b)
+        self.assertFalse(np.all(dif.flatten() < 0.00001))
 
     def equalish_atom(self, a, b):
         self.assertTrue(abs(a - b) < 0.00001)
