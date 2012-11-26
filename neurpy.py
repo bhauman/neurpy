@@ -99,61 +99,42 @@ def backprop(activations, y, thetas, lamb):
 
   return gradients
 
-def create_dropout_indices(thetas):
+def create_dropout_indices(thetas, percentage = 0.7):
     expanded_indices = []
     hid_layer_size = len(thetas[0])
-    hid_layer_indices = map(int,np.random.rand(np.ceil(hid_layer_size / 2)) * hid_layer_size)
-    expanded_indices.append([hid_layer_indices, range(thetas[0].shape[1])])
+    how_many = int(hid_layer_size * percentage)
+    hid_layer_indices = np.random.permutation(range(hid_layer_size))[0:how_many]
+    hid_layer_indices.sort()
+    expanded_indices.append([hid_layer_indices, Ellipsis])
     row = False
     for i in range(1,len(thetas)):
         if row:
             hid_layer_size = len(thetas[i])
-            hid_layer_indices = map(int,np.random.rand(np.ceil(hid_layer_size / 2)) * hid_layer_size)
-            expanded_indices.append([hid_layer_indices, range(thetas[i].shape[1])])
+            how_many = int(hid_layer_size * percentage)
+            # we will call this crazy dropout select rows randomly and duplicated
+            # crazy thing is that it still works!!
+            # hid_layer_indices = map(int,np.random.rand(np.ceil(hid_layer_size / 2)) * hid_layer_size)
+            hid_layer_indices = np.random.permutation(range(hid_layer_size))[0:how_many]
+            hid_layer_indices.sort()
+            expanded_indices.append([hid_layer_indices, Ellipsis])
         else:
             column_indices = [0] + map(lambda x: x + 1, hid_layer_indices) # have to account for bias column
-            expanded_indices.append([range(thetas[i].shape[0]), column_indices])
+            expanded_indices.append([Ellipsis, column_indices])
         row = not row
     return expanded_indices
 
-def dropout_thetas(thetas):
-    # now there are 2 thetas
-    # take rows out of the first theta
-    # take columns out of second theta
-    selected_indices = []
-    new_thetas = []
-    hid_layer_size = len(thetas[0])
-    hid_layer_indices = map(int,np.random.rand(np.ceil(hid_layer_size / 2)) * hid_layer_size)
-    selected_indices.append(hid_layer_indices)
-    new_thetas.append(thetas[0][hid_layer_indices,:])
-    row = False
+def dropout_indices_each(indices, f):
+    return map(lambda i, drop_index: f(i, drop_index[0], drop_index[1]), range(len(indices)), indices)
 
-    for i in range(1,len(thetas)):
-        if row:
-            hid_layer_size = len(thetas[i])
-            hid_layer_indices = map(int,np.random.rand(np.ceil(hid_layer_size / 2)) * hid_layer_size)
-            selected_indices.append(hid_layer_indices)          
-            new_thetas.append(thetas[i][hid_layer_indices,:])
-        else:
-            column_indices = [0] + map(lambda x: x + 1, hid_layer_indices) # have to account for bias column
-            new_thetas.append(thetas[i][:, column_indices])
-        row = not row
-
-    return new_thetas, selected_indices
+def dropout_thetas(thetas, selected_indices = []):
+    selected_indices = selected_indices if len(selected_indices) > 0 else create_dropout_indices(thetas)
+    return dropout_indices_each(selected_indices, lambda i,r,c: thetas[i][r,c]), selected_indices
 
 def recover_dropped_out_thetas(thetas, dropped_out_thetas, selected_indices):
-    thetas[0][selected_indices[0], :] = dropped_out_thetas[0] 
-    row = False
-    for i in range(1,len(thetas)):
-      if row:
-          thetas[i][selected_indices[i - 1], :] = dropped_out_thetas[i] 
-      else:
-          column_indices = [0] + map(lambda x: x + 1, selected_indices[i - 1]) # have to account for bias column
-          thetas[i][:, column_indices] = dropped_out_thetas[i]
-      row = not row
+    def task(i,r,c):
+        thetas[i][r,c] = dropped_out_thetas[i]
+    dropout_indices_each(selected_indices, task)
     return thetas
-
-
 
 def mini_batch_gradient_decent(X, y, 
                                hidden_layer_sz = 2, 
@@ -164,6 +145,7 @@ def mini_batch_gradient_decent(X, y,
                                rand_init_epsilon = 0.12,
                                do_early_stopping = False,
                                do_dropout = False,
+                               do_learning_adapt = False,
                                X_val = [], y_val = []):
     # one hidden layer
     input_layer_sz = len(X[0])
@@ -178,10 +160,18 @@ def mini_batch_gradient_decent(X, y,
     if do_early_stopping:
       best_so_far = {'thetas': [], 'validation_loss': 100000, 'after_n_iters': 0}
     selected_indices = []
+    orig_learning_rate = learning_rate
     for i in range(iter):
+        if do_learning_adapt:
+            learning_rate = orig_learning_rate * 1.1 * np.log(iter - i) / np.log(iter) 
         # set up thetas for dropout
-        in_use_thetas, selected_indices = dropout_thetas(thetas, selected_indices)
-        print 'selected', selected_indices
+        if do_dropout:
+            in_use_thetas, selected_indices = dropout_thetas(thetas)
+            in_use_momentum_speeds = dropout_indices_each(selected_indices, lambda i,r,c: momentum_speeds[i][r,c])
+            print 'selected', selected_indices
+        else:
+            in_use_thetas = thetas
+            in_use_momentum_speeds = momentum_speeds
         h_x, a = forward_prop(X, in_use_thetas)
         cost = logistic_squared_distance_with_wd(h_x, y, in_use_thetas, wd_coef)
         costs.append(cost)
@@ -198,10 +188,11 @@ def mini_batch_gradient_decent(X, y,
         # update thetas
         gradients = backprop(a, y, in_use_thetas, wd_coef)
         for ix in range(len(in_use_thetas)):
-            momentum_speeds[ix] = momentum_speeds[ix] * momentum_multiplier - gradients[ix]
-            in_use_thetas[ix] = in_use_thetas[ix] + learning_rate * momentum_speeds[ix]
-        print "thetas before recover", thetas[0].shape, thetas[1].shape
-        thetas = recover_dropped_out_thetas(thetas, in_use_thetas, selected_indices)
+            in_use_momentum_speeds[ix] = in_use_momentum_speeds[ix] * momentum_multiplier - gradients[ix]
+            in_use_thetas[ix] = in_use_thetas[ix] + learning_rate * in_use_momentum_speeds[ix]
+        # might not have to do this
+        if do_dropout:
+            thetas = recover_dropped_out_thetas(thetas, in_use_thetas, selected_indices)
     if do_early_stopping and (len(best_so_far['thetas']) > 0):
       thetas = best_so_far['thetas']
       print 'Early stopping: validation loss was lowest after ', best_so_far['after_n_iters'], ' iterations. We chose the model that we had then.\n'

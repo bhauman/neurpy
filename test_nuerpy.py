@@ -7,6 +7,16 @@ import matplotlib.pyplot as plt
 
 
 class TestNuerpy(unittest.TestCase):
+
+    def setUp(self):
+        self.theta = np.array(([0.040281,  -0.034031,   0.075200,   0.071569],
+                          [0.013256,   0.092686,  -0.070016,   0.093055]))
+        self.theta2 = np.array([[0.1150530,   0.1013294,  -0.0686610],
+                           [-0.0459608,   0.0020356,  -0.0995257],
+                           [0.0948434,   0.0686487,   0.0481420]])
+        self.theta3 = np.array([[0.1007928,   0.1168322,  -0.0497762,  -0.0658923],
+                           [-0.0841614,  -0.0378504,  -0.0918123,   0.0031022]])        
+
     def test_cross_validation_sets(self):
         r = np.arange(10)
         X = np.array([r,r * 2,r * 3,r * 4,r * 5,r * 6,r * 7,r * 8,r * 9,r * 10])
@@ -34,13 +44,7 @@ class TestNuerpy(unittest.TestCase):
         
     def test_forward_prop(self):
         X = np.array(([1, 2,3], [2,3,4]))
-        theta = np.array(([0.040281,  -0.034031,   0.075200,   0.071569],
-                            [0.013256,   0.092686,  -0.070016,   0.093055]))
-        theta2 = np.array([[0.1150530,   0.1013294,  -0.0686610],
-                           [-0.0459608,   0.0020356,  -0.0995257],
-                           [0.0948434,   0.0686487,   0.0481420]])
-        
-        out, a = neur.forward_prop(X, [theta, theta2])
+        out, a = neur.forward_prop(X, [self.theta, self.theta2])
 
         expected_result =  [[0.53407,   0.47487,   0.54053],
                             [0.53427,   0.47419,   0.54133]]
@@ -51,9 +55,7 @@ class TestNuerpy(unittest.TestCase):
         self.equalish(a[0], [[1,   1,   2,   3],
                              [1,   2,   3,   4]])
 
-        theta3 = np.array([[0.1007928,   0.1168322,  -0.0497762,  -0.0658923],
-                           [-0.0841614,  -0.0378504,  -0.0918123,   0.0031022]])
-        out, a = neur.forward_prop(X, [theta, theta2, theta3])
+        out, a = neur.forward_prop(X, [self.theta, self.theta2, self.theta3])
         expected_result = [[0.52596,   0.46349],
                            [0.52596,   0.46350]]
         self.equalish(out, expected_result)
@@ -73,35 +75,20 @@ class TestNuerpy(unittest.TestCase):
         self.equalish_atom(res, 1.2652)
     
     def test_cost_function_weight_decay(self):
-        theta = np.array(([0.040281,  -0.034031,   0.075200,   0.071569],
-                            [0.013256,   0.092686,  -0.070016,   0.093055]))
-        theta2 = np.array([[0.1150530,   0.1013294,  -0.0686610],
-                           [-0.0459608,   0.0020356,  -0.0995257],
-                           [0.0948434,   0.0686487,   0.0481420]])
-        res = neur.cost_function_weight_decay(2, [theta, theta2], 1)
+        res = neur.cost_function_weight_decay(2, [self.theta, self.theta2], 1)
         self.equalish_atom(res, 0.016502)
     
     def test_logistic_squared_distance_with_wd(self):
         h_x = np.array([[0.52596,   0.46349],
                       [0.52596,   0.46350]])
         y = np.array([[1, 0],[1, 0]]) 
-        theta = np.array(([0.040281,  -0.034031,   0.075200,   0.071569],
-                            [0.013256,   0.092686,  -0.070016,   0.093055]))
-        theta2 = np.array([[0.1150530,   0.1013294,  -0.0686610],
-                           [-0.0459608,   0.0020356,  -0.0995257],
-                           [0.0948434,   0.0686487,   0.0481420]])
-        res = neur.logistic_squared_distance_with_wd(h_x, y, [theta, theta2], 1)
+        res = neur.logistic_squared_distance_with_wd(h_x, y, [self.theta, self.theta2], 1)
         self.equalish_atom(res, 1.2817118)
 
     def test_gradient_check(self):
         X = np.array([[1, 2, 3], [2, 3, 4]])
         y = np.array([[0, 0, 1],[0, 0, 1]])
-        theta = np.array(([0.040281,  -0.034031,   0.075200,   0.071569],
-                            [0.013256,   0.092686,  -0.070016,   0.093055]))
-        theta2 = np.array([[0.1150530,   0.1013294,  -0.0686610],
-                           [-0.0459608,   0.0020356,  -0.0995257],
-                           [0.0948434,   0.0686487,   0.0481420]])
-        res = neur.gradient_check(X, y, [theta, theta2], neur.logistic_squared_cost_function)
+        res = neur.gradient_check(X, y, [self.theta, self.theta2], neur.logistic_squared_cost_function)
         self.equalish(res[0], np.array([[ 0.00562904,  0.00841451,  0.01404355,  0.01967259],
                                 [-0.02588239, -0.03870536, -0.06458776, -0.09047015]]))
         self.equalish(res[1], np.array([[ 0.5341706 ,  0.3233084 ,  0.30720236],
@@ -111,74 +98,58 @@ class TestNuerpy(unittest.TestCase):
     def test_backprop(self):
         X = np.array([[1, 2, 3], [2, 3, 4]])
         y = np.array([[0, 0, 1],[0, 0, 1]])
-        theta = np.array(([0.040281,  -0.034031,   0.075200,   0.071569],
-                            [0.013256,   0.092686,  -0.070016,   0.093055]))
-        theta2 = np.array([[0.1150530,   0.1013294,  -0.0686610],
-                           [-0.0459608,   0.0020356,  -0.0995257],
-                           [0.0948434,   0.0686487,   0.0481420]])
-        res, a = neur.forward_prop(X, [theta, theta2])
-        grads = neur.backprop(a, y, [theta, theta2], 0)
-        grads_check = neur.gradient_check(X, y, [theta, theta2], neur.logistic_squared_cost_function)
+        res, a = neur.forward_prop(X, [self.theta, self.theta2])
+        grads = neur.backprop(a, y, [self.theta, self.theta2], 0)
+        grads_check = neur.gradient_check(X, y, [self.theta, self.theta2], neur.logistic_squared_cost_function)
         self.equalish(grads[0], grads_check[0])
         self.equalish(grads[1], grads_check[1])
 
     def test_softmax(self):
         X = np.array([[1, 2, 3], [2, 3, 4]])
-        theta = np.array(([0.040281,  -0.034031,   0.075200,   0.071569],
-                            [0.013256,   0.092686,  -0.070016,   0.093055]))
-        theta2 = np.array([[0.1150530,   0.1013294,  -0.0686610],
-                           [-0.0459608,   0.0020356,  -0.0995257],
-                           [0.0948434,   0.0686487,   0.0481420]])
-        h_x, a = neur.forward_prop(X, [theta, theta2])
+        h_x, a = neur.forward_prop(X, [self.theta, self.theta2])
         res = neur.softmax(h_x)
         self.equalish(np.sum(res, axis=1), [1,1])
 
     def test_create_dropout_indices(self):
-        theta = np.array(([0.040281,  -0.034031,   0.075200,   0.071569],
-                          [0.013256,   0.092686,  -0.070016,   0.093055]))
-        theta2 = np.array([[0.1150530,   0.1013294,  -0.0686610],
-                           [-0.0459608,   0.0020356,  -0.0995257],
-                           [0.0948434,   0.0686487,   0.0481420]])
-        theta3 = np.array([[0.1007928,   0.1168322,  -0.0497762,  -0.0658923],
-                           [-0.0841614,  -0.0378504,  -0.0918123,   0.0031022]])
-        print neur.create_dropout_indices([theta, theta2, theta3])
+
+        res = neur.create_dropout_indices([self.theta, self.theta2, self.theta3])
+        self.assertEqual(3, len(res))
+        self.assertEqual(Ellipsis, res[0][1])
+        self.assertEqual(Ellipsis, res[1][0])
+        self.assertEqual(Ellipsis, res[2][1])
+        
+    def test_dropout_indices_each(self):
+        return False
 
     def test_dropout_thetas(self):
-        theta = np.array(([0.040281,  -0.034031,   0.075200,   0.071569],
-                          [0.013256,   0.092686,  -0.070016,   0.093055]))
-        theta2 = np.array([[0.1150530,   0.1013294,  -0.0686610],
-                           [-0.0459608,   0.0020356,  -0.0995257],
-                           [0.0948434,   0.0686487,   0.0481420]])
-        theta3 = np.array([[0.1007928,   0.1168322,  -0.0497762,  -0.0658923],
-                           [-0.0841614,  -0.0378504,  -0.0918123,   0.0031022]])
-        dropped_thetas, indices = neur.dropout_thetas([theta, theta2, theta3])
-        print dropped_thetas
+
+        dropped_thetas, indices = neur.dropout_thetas([self.theta, self.theta2, self.theta3])
+        #print dropped_thetas
         dropped_thetas[0] = dropped_thetas[0] + 10
         dropped_thetas[1] = dropped_thetas[1] + 10
         dropped_thetas[2] = dropped_thetas[2] + 10
-        theta_orig = theta.copy()
-        theta2_orig = theta2.copy()
-        theta3_orig = theta3.copy()
-        thetas = neur.recover_dropped_out_thetas([theta, theta2, theta3], dropped_thetas, indices)
+        theta_orig = self.theta.copy()
+        theta2_orig = self.theta2.copy()
+        theta3_orig = self.theta3.copy()
+        thetas = neur.recover_dropped_out_thetas([self.theta, self.theta2, self.theta3], dropped_thetas, indices)
 
-        equal_indices = list(set(range(theta_orig.shape[0])) - set(indices[0]))
-        self.not_equalish(theta_orig[indices[0], :], thetas[0][indices[0], :])
+        equal_indices = list(set(range(theta_orig.shape[0])) - set(indices[0][0]))
+        self.not_equalish(theta_orig[indices[0][0], :], thetas[0][indices[0][0], :])
         self.equalish(theta_orig[equal_indices, :], thetas[0][equal_indices, :])
 
-        not_equal_indices = [0] + map(lambda x: x + 1,(indices[0]))
+        not_equal_indices = indices[1][1]
         equal_indices = list(set(range(theta_orig.shape[0] + 1)) - set(not_equal_indices))
         self.not_equalish(theta2_orig[:, not_equal_indices], thetas[1][:, not_equal_indices])
         self.equalish(theta2_orig[:, equal_indices], thetas[1][:, equal_indices])
-        
-        equal_indices = list(set(range(theta3_orig.shape[0])) - set(indices[1]))
-        self.not_equalish(theta3_orig[indices[1], :], thetas[2][indices[1], :])
+
+        not_equal_indices = indices[2][0]        
+        equal_indices = list(set(range(theta3_orig.shape[0])) - set(not_equal_indices))
+        self.not_equalish(theta3_orig[not_equal_indices, :], thetas[2][not_equal_indices, :])
         self.equalish(theta3_orig[equal_indices, :], thetas[2][equal_indices, :])
         
-        self.equalish(theta, thetas[0])
-        self.equalish(theta2, thetas[1])
-        self.equalish(theta3, thetas[2])
-
-        
+        self.equalish(self.theta, thetas[0])
+        self.equalish(self.theta2, thetas[1])
+        self.equalish(self.theta3, thetas[2])
 
     def est_gradient_decsent(self):
         iris = datasets.load_iris()
@@ -194,7 +165,7 @@ class TestNuerpy(unittest.TestCase):
                                                         np.array(X_val),
                                                         np.array(y_val))
 
-    def est_mini_batch_gradient_descent(self):
+    def test_mini_batch_gradient_descent(self):
         digits = datasets.load_digits()
         # iris = datasets.load_iris()
         X = digits.images.reshape((digits.images.shape[0], -1))
@@ -204,15 +175,20 @@ class TestNuerpy(unittest.TestCase):
 
         y = self.all_to_sparse( digits.target, max(digits.target) + 1 )
         X, y, X_val, y_val, X_test, y_test = neur.cross_validation_sets(np.array(X), np.array(y))
+        X_val = np.vstack([X_val, X_test]) 
+        y_val = np.vstack([y_val, y_test]) 
         thetas, costs, val_costs = neur.mini_batch_gradient_decent(np.array(X), 
                                                                    np.array(y),
-                                                                   hidden_layer_sz = 11,
-                                                                   iter = 1000,
-                                                                   wd_coef = 0.0001,
-                                                                   learning_rate = 0.35,
+                                                                   #hidden_layer_sz = 11,
+                                                                   hidden_layer_sz = 30,
+                                                                   iter = 2500,
+                                                                   wd_coef = 0.0,
+                                                                   learning_rate = 0.5,
                                                                    momentum_multiplier = 0.9,
-                                                                   rand_init_epsilon = 0.000012,
+                                                                   rand_init_epsilon = 0.0012,
                                                                    do_early_stopping = True,
+                                                                   do_dropout = True,
+                                                                   #do_learning_adapt = True,
                                                                    X_val = np.array(X_val),
                                                                    y_val = np.array(y_val))
         h_x, a = neur.forward_prop(X_test, thetas)
