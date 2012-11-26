@@ -99,7 +99,7 @@ def backprop(activations, y, thetas, lamb):
 
   return gradients
 
-def create_dropout_indices(thetas, percentage = 0.7):
+def create_dropout_indices(thetas, percentage = 0.9):
     expanded_indices = []
     hid_layer_size = len(thetas[0])
     how_many = int(hid_layer_size * percentage)
@@ -146,6 +146,7 @@ def mini_batch_gradient_decent(X, y,
                                do_early_stopping = False,
                                do_dropout = False,
                                do_learning_adapt = False,
+                               dropout_percentage = 0.9,
                                X_val = [], y_val = []):
     # one hidden layer
     input_layer_sz = len(X[0])
@@ -166,7 +167,8 @@ def mini_batch_gradient_decent(X, y,
             learning_rate = orig_learning_rate * 1.1 * np.log(iter - i) / np.log(iter) 
         # set up thetas for dropout
         if do_dropout:
-            in_use_thetas, selected_indices = dropout_thetas(thetas)
+            selected_indices = create_dropout_indices(thetas, dropout_percentage)
+            in_use_thetas, selected_indices = dropout_thetas(thetas, selected_indices)
             in_use_momentum_speeds = dropout_indices_each(selected_indices, lambda i,r,c: momentum_speeds[i][r,c])
         else:
             in_use_thetas = thetas
@@ -195,40 +197,6 @@ def mini_batch_gradient_decent(X, y,
     if do_early_stopping and (len(best_so_far['thetas']) > 0):
       thetas = best_so_far['thetas']
       print 'Early stopping: validation loss was lowest after ', best_so_far['after_n_iters'], ' iterations. We chose the model that we had then.\n'
-
-    return thetas, costs, val_costs
-
-
-def gradient_decent(X, y, X_val = [], y_val = []):
-    # one hidden layer
-    lamb = 0.01
-    input_layer_sz = len(X[0])
-    hidden_layer_sz = 2
-    output_layer_sz = len(y[0])
-    sizes = [input_layer_sz, hidden_layer_sz, output_layer_sz]
-    theta1 = rand_init_theta(input_layer_sz, hidden_layer_sz, 0.12)
-    theta2 = rand_init_theta(hidden_layer_sz, output_layer_sz, 0.12)
-    thetas = [theta1, theta2]
-    learning_rate = 0.05
-    momentum_speeds = map(lambda x: x * 0, thetas)
-    momentum_multiplier = 0.9
-    costs = []
-    val_costs = []
-
-    for i in range(1000):
-        h_x, a = forward_prop(X, thetas)
-        h_x = softmax(h_x)
-        cost = logistic_squared_distance_with_wd(h_x, y, thetas, lamb)
-        costs.append(cost)
-        if X_val.any():
-          vh_x, va = forward_prop(X_val, thetas)
-          vh_x = softmax(vh_x)
-          vcost = logistic_squared_distance_with_wd(vh_x, y_val, thetas, lamb)
-          val_costs.append(vcost)
-        gradients = backprop(a, y, thetas, lamb)
-        for i in range(len(thetas)):
-            momentum_speeds[i] = momentum_speeds[i] * momentum_multiplier - gradients[i]
-            thetas[i] = thetas[i] + learning_rate * momentum_speeds[i]
     return thetas, costs, val_costs
 
 def gradient_check(X, y, thetas, cost_func):
