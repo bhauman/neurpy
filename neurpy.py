@@ -168,7 +168,6 @@ def mini_batch_gradient_decent(X, y,
         if do_dropout:
             in_use_thetas, selected_indices = dropout_thetas(thetas)
             in_use_momentum_speeds = dropout_indices_each(selected_indices, lambda i,r,c: momentum_speeds[i][r,c])
-            print 'selected', selected_indices
         else:
             in_use_thetas = thetas
             in_use_momentum_speeds = momentum_speeds

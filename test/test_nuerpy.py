@@ -1,10 +1,10 @@
+import sys
+sys.path[:0] = '../../'
 import unittest
 import neurpy as neur
 import numpy as np
 from sklearn import datasets
 from sklearn import preprocessing as pre
-import matplotlib.pyplot as plt
-
 
 class TestNuerpy(unittest.TestCase):
 
@@ -165,43 +165,6 @@ class TestNuerpy(unittest.TestCase):
                                                         np.array(X_val),
                                                         np.array(y_val))
 
-    def test_mini_batch_gradient_descent(self):
-        digits = datasets.load_digits()
-        # iris = datasets.load_iris()
-        X = digits.images.reshape((digits.images.shape[0], -1))
-
-        scaler = pre.Scaler()
-        X = scaler.fit_transform(X)
-
-        y = self.all_to_sparse( digits.target, max(digits.target) + 1 )
-        X, y, X_val, y_val, X_test, y_test = neur.cross_validation_sets(np.array(X), np.array(y))
-        X_val = np.vstack([X_val, X_test]) 
-        y_val = np.vstack([y_val, y_test]) 
-        thetas, costs, val_costs = neur.mini_batch_gradient_decent(np.array(X), 
-                                                                   np.array(y),
-                                                                   #hidden_layer_sz = 11,
-                                                                   hidden_layer_sz = 30,
-                                                                   iter = 2500,
-                                                                   wd_coef = 0.0,
-                                                                   learning_rate = 0.5,
-                                                                   momentum_multiplier = 0.9,
-                                                                   rand_init_epsilon = 0.0012,
-                                                                   do_early_stopping = True,
-                                                                   do_dropout = True,
-                                                                   #do_learning_adapt = True,
-                                                                   X_val = np.array(X_val),
-                                                                   y_val = np.array(y_val))
-        h_x, a = neur.forward_prop(X_test, thetas)
-        print "percentage correct predictions: ", self.percent_equal(self.map_to_max_binary_result(h_x), y_test)
-        print "training error:",   costs[-1:][0]
-        print "validation error:", val_costs[-1:][0]
-        print "lowest validation error:", min(val_costs)
-        plt.plot(costs, label='cost')
-        plt.plot(val_costs, label='val cost')
-        plt.legend()
-        plt.ylabel('error rate')
-        plt.show()        
-        
     def equalish(self,a,b):
         dif = np.abs(a - b)
         self.assertTrue(np.all(dif.flatten() < 0.00001))
@@ -213,24 +176,7 @@ class TestNuerpy(unittest.TestCase):
     def equalish_atom(self, a, b):
         self.assertTrue(abs(a - b) < 0.00001)
 
-    def percent_equal(self, a, b):
-        num_equal = sum(map(lambda x,y: 1 if np.equal(x,y).all() else 0, a, b))
-        return float(num_equal) / len(a)
 
-    def map_to_max_binary_result(self,h_x):
-        maxes = map(max, h_x)
-        res = []
-        for i in range(len(maxes)):
-           res.append(h_x[i].tolist().index(maxes[i]))
-        return self.all_to_sparse(res, max(res) + 1)
-
-    def convert_to_sparse(self, ex, num_class):
-        res = [0] * num_class
-        res[ex] = 1
-        return res
-
-    def all_to_sparse(self, exs, num_class):
-        return map(self.convert_to_sparse, exs, [num_class] * len(exs))
 
 if __name__ == '__main__':
     unittest.main()
