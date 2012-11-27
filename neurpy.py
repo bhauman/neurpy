@@ -1,20 +1,31 @@
 import numpy as np
 import copy
+import os.path
+import pickle
 
-def cross_validation_sets(X,y):
-    m = X.shape[0]
-    indexes = np.random.permutation(np.arange(m))
-    Xshuf = X[indexes, :]
-    yshuf = y[indexes, :]
-    first_split = int(m * 0.8)
-    second_split = int(m * 0.9)
-    X = Xshuf[0:first_split, :]
-    y = yshuf[0:first_split, :]
-    X_val = Xshuf[first_split:second_split, :]
-    y_val = yshuf[first_split:second_split, :]
-    X_test = Xshuf[second_split:m, :]
-    y_test = yshuf[second_split:m, :]
-    return X, y, X_val, y_val, X_test, y_test
+def cross_validation_sets(X,y, pickle_name = False, cache_overwrite = False):
+    if pickle_name:
+        filename = './random_set_cache/data_' + pickle_name +'.pkl'
+    if pickle_name and not cache_overwrite and os.path.exists(filename):
+        print "Loading cached data"
+        res_tuple = pickle.load(open(filename, 'r'))
+    else:
+        m = X.shape[0]
+        indexes = np.random.permutation(np.arange(m))
+        Xshuf = X[indexes, :]
+        yshuf = y[indexes, :]
+        first_split = int(m * 0.8)
+        second_split = int(m * 0.9)
+        X = Xshuf[0:first_split, :]
+        y = yshuf[0:first_split, :]
+        X_val = Xshuf[first_split:second_split, :]
+        y_val = yshuf[first_split:second_split, :]
+        X_test = Xshuf[second_split:m, :]
+        y_test = yshuf[second_split:m, :]
+        res_tuple = X, y, X_val, y_val, X_test, y_test
+        if pickle_name:
+            pickle.dump(res_tuple, open(filename,'w'))
+    return res_tuple
 
 def rand_init_theta(input_size, output_size, epsilon = 0.12):
     return np.random.rand(output_size, input_size + 1) * 2 * epsilon - epsilon
@@ -49,6 +60,9 @@ def forward_prop(x, thetas):
 
 def logistic_squared_distance(h_x, y):
     m = h_x.shape[0]
+    #print h_x.shape
+    #print y.shape
+    
     return -1 * (y * np.log(h_x) + (1 - y) * np.log(1 - h_x)).sum() / m
 
 def cost_function_weight_decay(m, thetas, lamb):
@@ -123,6 +137,29 @@ def create_dropout_indices(thetas, percentage = 0.9):
         row = not row
     return expanded_indices
 
+def create_dropout_indices_new(thetas, percentage = 0.9):
+    expanded_indices = []
+    hid_layer_size = len(thetas[0])
+    how_many = int(hid_layer_size * percentage)
+    hid_layer_indices = np.random.permutation(range(hid_layer_size))[0:how_many]
+    hid_layer_indices.sort()
+    expanded_indices.append([hid_layer_indices, Ellipsis])
+    row = False
+    for i in range(1,len(thetas)):
+        column_indices = [0] + map(lambda x: x + 1, hid_layer_indices) # have to account for bias column
+        hid_layer_indices = Ellipsis
+        if i < len(thetas) - 1:
+            hid_layer_size = len(thetas[i + 1])
+            how_many = int(hid_layer_size * percentage)
+            # we will call this crazy dropout select rows randomly and duplicated
+            # crazy thing is that it still works!!
+            # hid_layer_indices = map(int,np.random.rand(np.ceil(hid_layer_size / 2)) * hid_layer_size)
+            hid_layer_indices = np.random.permutation(range(hid_layer_size))[0:how_many]
+            hid_layer_indices.sort()
+        expanded_indices.append([hid_layer_indices, column_indices])
+
+    return expanded_indices
+
 def dropout_indices_each(indices, f):
     return map(lambda i, drop_index: f(i, drop_index[0], drop_index[1]), range(len(indices)), indices)
 
@@ -136,25 +173,33 @@ def recover_dropped_out_thetas(thetas, dropped_out_thetas, selected_indices):
     dropout_indices_each(selected_indices, task)
     return thetas
 
-def mini_batch_gradient_decent(X, y, 
-                               hidden_layer_sz = 2, 
-                               iter = 1000, 
-                               wd_coef = 0.0,
-                               learning_rate = 0.35, 
-                               momentum_multiplier = 0.9,
-                               rand_init_epsilon = 0.12,
-                               do_early_stopping = False,
-                               do_dropout = False,
-                               do_learning_adapt = False,
-                               dropout_percentage = 0.9,
-                               X_val = [], y_val = []):
+def create_initial_thetas(layer_sizes, epsilon):
+    thetas = []
+    for i in range(0,len(layer_sizes) - 1):
+        thetas.append(rand_init_theta(layer_sizes[i], layer_sizes[i + 1], epsilon))
+    return thetas
+
+def gradient_decent(X, y, 
+                    hidden_layer_sz = 2, 
+                    iter = 1000, 
+                    wd_coef = 0.0,
+                    learning_rate = 0.35, 
+                    momentum_multiplier = 0.9,
+                    rand_init_epsilon = 0.12,
+                    do_early_stopping = False,
+                    do_dropout = False,
+                    do_learning_adapt = False,
+                    dropout_percentage = 0.9,
+                    X_val = [], y_val = []):
     # one hidden layer
     input_layer_sz = len(X[0])
     output_layer_sz = len(y[0])
+    #print 'y shape', y.shape
     sizes = [input_layer_sz, hidden_layer_sz, output_layer_sz]
-    theta1 = rand_init_theta(input_layer_sz, hidden_layer_sz, rand_init_epsilon)
-    theta2 = rand_init_theta(hidden_layer_sz, output_layer_sz, rand_init_epsilon)
-    thetas = [theta1, theta2]
+    thetas = create_initial_thetas(sizes, rand_init_epsilon)
+    #for t in thetas:
+    #    print t.shape
+
     momentum_speeds = map(lambda x: x * 0, thetas)
     costs = []
     val_costs = []
@@ -167,9 +212,10 @@ def mini_batch_gradient_decent(X, y,
             learning_rate = orig_learning_rate * 1.1 * np.log(iter - i) / np.log(iter) 
         # set up thetas for dropout
         if do_dropout:
-            selected_indices = create_dropout_indices(thetas, dropout_percentage)
+            selected_indices = create_dropout_indices_new(thetas, dropout_percentage)
             in_use_thetas, selected_indices = dropout_thetas(thetas, selected_indices)
             in_use_momentum_speeds = dropout_indices_each(selected_indices, lambda i,r,c: momentum_speeds[i][r,c])
+            #print selected_indices
         else:
             in_use_thetas = thetas
             in_use_momentum_speeds = momentum_speeds
@@ -178,25 +224,37 @@ def mini_batch_gradient_decent(X, y,
         costs.append(cost)
         if X_val.any():
             # lets get the validation cost for the whole model at first
-            vh_x, va = forward_prop(X_val, thetas)
-            vcost = logistic_squared_distance_with_wd(vh_x, y_val, thetas, wd_coef)
+            vthetas = thetas
+            if do_dropout:
+                vthetas = map(lambda th: th * dropout_percentage, thetas)
+        
+            vh_x, va = forward_prop(X_val, vthetas)
+            vcost = logistic_squared_distance_with_wd(vh_x, y_val, vthetas, wd_coef)
             val_costs.append(vcost)
         if X_val.any() and do_early_stopping and (vcost < best_so_far['validation_loss']):
             best_so_far['thetas'] = map(lambda x: x.copy(), thetas)
             best_so_far['validation_loss'] = vcost
             best_so_far['after_n_iters'] = i
-            
+        orig_thetas = thetas    
+        orig_momentum_speeds = copy.deepcopy(momentum_speeds)
         # update thetas
         gradients = backprop(a, y, in_use_thetas, wd_coef)
         for ix in range(len(in_use_thetas)):
             in_use_momentum_speeds[ix] = in_use_momentum_speeds[ix] * momentum_multiplier - gradients[ix]
             in_use_thetas[ix] = in_use_thetas[ix] + learning_rate * in_use_momentum_speeds[ix]
+        #print map(np.equal, orig_thetas, thetas)
+        #print map(np.equal, orig_momentum_speeds, momentum_speeds)
         # might not have to do this
         if do_dropout:
             thetas = recover_dropped_out_thetas(thetas, in_use_thetas, selected_indices)
+            momentum_speeds = recover_dropped_out_thetas(momentum_speeds, in_use_momentum_speeds, selected_indices)
+        #print map(np.equal, orig_thetas, thetas)
+        #print map(np.equal, orig_momentum_speeds, momentum_speeds)
     if do_early_stopping and (len(best_so_far['thetas']) > 0):
-      thetas = best_so_far['thetas']
-      print 'Early stopping: validation loss was lowest after ', best_so_far['after_n_iters'], ' iterations. We chose the model that we had then.\n'
+        thetas = best_so_far['thetas']
+        print 'Early stopping: validation loss was lowest after ', best_so_far['after_n_iters'], ' iterations. We chose the model that we had then.\n'
+    if do_dropout:
+        thetas = map(lambda th: th * dropout_percentage, thetas)
     return thetas, costs, val_costs
 
 def gradient_check(X, y, thetas, cost_func):

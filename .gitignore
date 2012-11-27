@@ -1,3 +1,4 @@
 *.pyc
 \#*
 \.#*
+random_set_cache
