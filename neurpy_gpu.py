@@ -1,5 +1,8 @@
-import numpy as np
+
+import cudamat as cm
 import gnumpy as gpu
+
+import numpy as np
 import copy
 import os.path
 import pickle
@@ -11,6 +14,7 @@ def cross_validation_sets(X,y, pickle_name = False, cache_overwrite = False):
     if pickle_name and not cache_overwrite and os.path.exists(filename):
         print "Loading cached data"
         res_tuple = pickle.load(open(filename, 'r'))
+        
     else:
         m = X.shape[0]
         indexes = np.random.permutation(np.arange(m))
@@ -27,21 +31,33 @@ def cross_validation_sets(X,y, pickle_name = False, cache_overwrite = False):
         res_tuple = X, y, X_val, y_val, X_test, y_test
         if pickle_name:
             pickle.dump(res_tuple, open(filename,'w'))
-    return res_tuple
+    X, y, X_val, y_val, X_test, y_test = res_tuple
+    X = gpu.as_garray(X)
+    y = gpu.as_garray(y)
+    X_val = gpu.as_garray(X_val)
+    y_val = gpu.as_garray(y_val)
+    X_test = gpu.as_garray(X_test)
+    y_test = gpu.as_garray(y_test)
+    return X, y, X_val, y_val, X_test, y_test
 
 def rand_init_theta(input_size, output_size, epsilon = 0.12):
-    return np.random.rand(output_size, input_size + 1) * 2 * epsilon - epsilon
+    return gpu.rand(output_size, input_size + 1) * 2 * epsilon - epsilon
 
 def sigmoid(z):
-    return 1.0 / (1.0 + np.exp(z * -1))
+    return 1.0 / (1.0 + gpu.exp(z * -1))
 
 def softmax(inputs):
-    res = np.max(inputs, axis=1)
-    res = res.repeat(len(inputs[0, :]))
-    res.shape = len(inputs), len(inputs[0, :])
-    out =  np.exp(inputs - res)
-    rout = np.sum(out, axis=1).repeat(len(inputs[0,:]))
-    rout.shape = len(inputs), len(inputs[0, :])
+    res = gpu.max(inputs, axis=1)
+    res = gpu.tile(res, len(inputs[0, :]))
+    res.shape = len(inputs[0, :]), len(inputs)
+    # this is a strange bug right here
+    res = res.transpose().transpose()
+    out =  gpu.exp(inputs - res)
+    sum = gpu.sum(out, axis=1)
+    rout = gpu.tile(sum, len(inputs[0,:]))
+    rout.shape = len(inputs[0, :]), len(inputs)
+    # this is a strange bug right here
+    rout = rout.transpose().transpose()
     return out / rout
     
 def forward_prop(x, thetas):
@@ -49,26 +65,21 @@ def forward_prop(x, thetas):
     num_thetas = len(thetas)
     a = [0] * (num_thetas + 1)
     z = [0] * (num_thetas + 1)
-    a[0] = np.hstack([np.ones((rows, 1)), x])
-    
-    z[1] = np.dot(a[0], thetas[0].transpose())
+
+    a[0] = gpu.concatenate([gpu.ones((rows, 1)), x], axis=1)
+
+    z[1] = gpu.dot(a[0], thetas[0].transpose())
     for i in range(1, num_thetas):
-        a[i] = np.hstack([np.ones((len(z[i]),1)), sigmoid(z[i])])
-        z[i + 1] = np.dot(a[i], thetas[i].transpose())
+        a[i] = gpu.concatenate([gpu.ones((len(z[i]),1)), sigmoid(z[i])], axis=1)
+        z[i + 1] = gpu.dot(a[i], thetas[i].transpose())
 
     a[num_thetas] = sigmoid(z[num_thetas])
     out = a[num_thetas]
     return out, a
 
-def sigmoid_gpu(z):
-    return 1.0 / (1.0 + gpu.exp(z * -1))
-
 def logistic_squared_distance(h_x, y):
     m = h_x.shape[0]
-    #print h_x.shape
-    #print y.shape
-    
-    return -1 * (y * np.log(h_x) + (1 - y) * np.log(1 - h_x)).sum() / m
+    return -1 * (y * gpu.log(h_x) + (1 - y) * gpu.log(1 - h_x)).sum() / m
 
 def cost_function_weight_decay(m, thetas, lamb):
     theta_squared_sum = 0
@@ -96,7 +107,7 @@ def backprop(activations, y, thetas, lamb):
   
   for layer in range(L - 2, 0, -1):
     derivative_of_previous_z = a[layer] * (1 - a[layer])
-    delta[layer] = (np.dot(delta[layer + 1], thetas[layer])) * derivative_of_previous_z
+    delta[layer] = (gpu.dot(delta[layer + 1], thetas[layer])) * derivative_of_previous_z
     # these layers are all have to eliminate the first element of the deltas (accomodate bias)
     delta[layer] = delta[layer][:, 1:]
 
@@ -104,10 +115,10 @@ def backprop(activations, y, thetas, lamb):
   tL = L - 1;
   theta_derivatives = [0] * tL 
   for t_layer in range(tL):
-    theta_derivatives[t_layer] = np.dot(a[t_layer].transpose(), delta[t_layer + 1]).transpose() / m
+    theta_derivatives[t_layer] = gpu.dot(a[t_layer].transpose(), delta[t_layer + 1]).transpose() / m
 
   # last layer different
-  theta_derivatives[tL - 1] = np.dot(a[tL - 1].transpose(), delta[tL]).transpose() / m
+  theta_derivatives[tL - 1] = gpu.dot(a[tL - 1].transpose(), delta[tL]).transpose() / m
 
   gradients = [0] * tL
   
@@ -214,7 +225,8 @@ def gradient_decent(X, y,
     orig_learning_rate = learning_rate
     for i in range(iter):
         if do_learning_adapt:
-            learning_rate = orig_learning_rate * 1.1 * np.log(iter - i) / np.log(iter) 
+            #learning_rate = orig_learning_rate * 1.1 * np.log(iter - i) / np.log(iter) 
+            learning_rate = learning_rate * 0.998
         # set up thetas for dropout
         if do_dropout:
             selected_indices = create_dropout_indices_new(thetas, dropout_percentage)
@@ -261,17 +273,17 @@ def gradient_check(X, y, thetas, cost_func):
     num_thetas = len(thetas)
     gradients = [0] * num_thetas
     for t in range(num_thetas):
-        gradients[t] = np.zeros(thetas[t].shape)
+        gradients[t] = gpu.zeros(thetas[t].shape)
         num_rows, num_columns = thetas[t].shape
         for i in range(num_rows):
             for j in range(num_columns):
-                up_theta = thetas[t].copy() 
+                up_theta = thetas[t].copy()
                 up_theta[i,j] += epsilon 
                 down_theta = thetas[t].copy() 
                 down_theta[i,j] -= epsilon
-                up_thetas = copy.copy(thetas)
+                up_thetas = copy.deepcopy(thetas)
                 up_thetas[t] = up_theta
-                down_thetas = copy.copy(thetas)
+                down_thetas = copy.deepcopy(thetas)
                 down_thetas[t] = down_theta
                 cost_up = cost_func(X, y, up_thetas, 0)
                 cost_down = cost_func(X, y, down_thetas, 0)
