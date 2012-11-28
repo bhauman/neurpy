@@ -1,5 +1,7 @@
 import sys
 sys.path[:0] = '../../'
+import cProfile
+
 import unittest
 import neurpy as neur
 import numpy as np
@@ -23,8 +25,8 @@ def basic_gradient_descent():
     thetas, costs, val_costs = neur.gradient_decent(np.array(X), 
                                                     np.array(y),
                                                     #hidden_layer_sz = 11,
-                                                    hidden_layer_sz = 45,
-                                                    iter = 2000,
+                                                    hidden_layer_sz = 200,
+                                                    iter = 500,
                                                     wd_coef = 0.0,
                                                     learning_rate = 0.25,
                                                     momentum_multiplier = 0.9,
@@ -44,6 +46,12 @@ def basic_gradient_descent():
     plt.plot(val_costs, label='val cost')
     plt.legend()
     plt.ylabel('error rate')
-    plt.show()        
+    #plt.show()        
+
         
-basic_gradient_descent()
+cProfile.run('basic_gradient_descent()', 'profile.stats')
+import pstats
+p = pstats.Stats('profile.stats')
+p.strip_dirs()
+p.sort_stats('time')
+p.print_stats()
