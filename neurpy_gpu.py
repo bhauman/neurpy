@@ -7,9 +7,10 @@ import neurpy as neur
 
 class NeurpyGpu:
     def __init__(self):
-        self.m = 10000
-        self.sizes = [10,5,3]
-        self.thetas = map(lambda x: cm.CUDAMatrix(x), neur.create_initial_thetas(self.sizes, 0.12))
+        self.m = 10
+        self.sizes = [3000,50,3]
+        #self.thetas = map(lambda x: cm.CUDAMatrix(x), neur.create_initial_thetas(self.sizes, 0.12))
+        self.thetas = map(lambda x: cm.empty((self.sizes[x + 1], self.sizes[x] + 1)).fill_with_rand(), range(len(self.sizes) - 1))
 
         self.activ_layers = map(lambda x: cm.CUDAMatrix(np.zeros((self.m, x + 1))), self.sizes[0:-1])
         self.activ_layers.append(cm.CUDAMatrix(np.zeros((self.m, self.sizes[-1]))))
@@ -21,14 +22,15 @@ class NeurpyGpu:
 
         self.layer_expand_mask = map(lambda x: cm.CUDAMatrix(np.hstack([np.zeros((x, 1)), np.eye(x)])), self.sizes[0:-1])
 
-        clear = np.zeros((11,11))
+        size1 = self.sizes[0] + 1
+        clear = np.zeros((size1,size1))
         clear[0,0] = 1
-        self.clear_vec = cm.CUDAMatrix(clear[0:11,0:11])
+        self.clear_vec = cm.CUDAMatrix(clear[0:size1,0:size1])
         #print self.clear_vec.shape
-        self.clear_vec2 = cm.CUDAMatrix(clear[0:6,0:6])
+        self.clear_vec2 = cm.CUDAMatrix(clear[0:51,0:51])
         
         self.z = [0] * (len(self.thetas) + 1)
-        self.z[1] = cm.empty((self.m, 5))
+        self.z[1] = cm.empty((self.m, 50))
         self.z[2] = cm.empty((self.m, 3))
         
     def forward_prop(self, x, thetas):
@@ -37,7 +39,6 @@ class NeurpyGpu:
         cm.dot(x, self.layer_expand_mask[0], self.activ_layers_temp[0])
         cm.dot(self.activ_layers[0], self.clear_vec, self.activ_layers[0])
         self.activ_layers[0].add(self.activ_layers_temp[0])
-
         cm.dot(self.activ_layers[0], thetas[0].T, self.z[1])
         for i in range(1, num_thetas):
             cm.dot(self.z[i].apply_sigmoid(), self.layer_expand_mask[i], self.activ_layers_temp[i])
@@ -75,34 +76,26 @@ cm.init()
 cm.CUDAMatrix.init_random(seed = 42)
 
 nrp = NeurpyGpu()
-
-x = cm.empty((nrp.m, 10))
-
-
-print x.fill_with_rand()
-
-
-print nrp.forward_prop(x, nrp.thetas)
-print nrp.forward_prop(x, nrp.thetas)
-
+x = cm.empty((nrp.m, nrp.sizes[0]))
 
 def repeater(iter, f):
     for i in range(iter):
         f()
 
-
-times_to_run = 1000
+times_to_run = 100
 import cProfile
+
 cProfile.run('repeater(times_to_run, lambda: nrp.forward_prop(x, nrp.thetas))', None, 'time')
 
-x = x.asarray()
-thetas = map(lambda x: x.asarray(), nrp.thetas)
 
-forward_prop_compare(x, thetas)
-forward_prop_compare(x, thetas)
 
-print "numpy time"
-cProfile.run('repeater(times_to_run, lambda: forward_prop_compare(x, thetas))', None, 'time')
+#x = x.asarray()
+#thetas = map(lambda x: x.asarray(), nrp.thetas)
+
+#forward_prop_compare(x, thetas)
+
+#print "numpy time"
+#cProfile.run('repeater(times_to_run, lambda: forward_prop_compare(x, thetas))', None, 'time')
 
 
 #print nrp.thetas

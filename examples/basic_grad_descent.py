@@ -32,8 +32,8 @@ def basic_gradient_descent():
                                                     momentum_multiplier = 0.9,
                                                     rand_init_epsilon = 0.012,
                                                     do_early_stopping = True,
-                                                    do_dropout = True,
-                                                    dropout_percentage = 0.7,
+                                                    #do_dropout = True,
+                                                    #dropout_percentage = 0.7,
                                                     #do_learning_adapt = True,
                                                     X_val = np.array(X_val),
                                                     y_val = np.array(y_val))
@@ -46,12 +46,14 @@ def basic_gradient_descent():
     plt.plot(val_costs, label='val cost')
     plt.legend()
     plt.ylabel('error rate')
-    #plt.show()        
+    plt.show()        
 
-        
-cProfile.run('basic_gradient_descent()', 'profile.stats')
-import pstats
-p = pstats.Stats('profile.stats')
-p.strip_dirs()
-p.sort_stats('time')
-p.print_stats()
+ 
+basic_gradient_descent()
+#cProfile.run('basic_gradient_descent()', 'profile.stats')
+#import pstats
+
+#p = pstats.Stats('profile.stats')
+#p.strip_dirs()
+#p.sort_stats('time')
+#p.print_stats()

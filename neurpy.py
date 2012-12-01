@@ -195,13 +195,16 @@ def gradient_decent(X, y,
                     do_dropout = False,
                     do_learning_adapt = False,
                     dropout_percentage = 0.9,
+                    thetas = [],
                     X_val = [], y_val = []):
+    
     # one hidden layer
     input_layer_sz = len(X[0])
     output_layer_sz = len(y[0])
     #print 'y shape', y.shape
     sizes = [input_layer_sz, hidden_layer_sz, output_layer_sz]
-    thetas = create_initial_thetas(sizes, rand_init_epsilon)
+    if not any(thetas):
+        thetas = create_initial_thetas(sizes, rand_init_epsilon)
     #for t in thetas:
     #    print t.shape
 
