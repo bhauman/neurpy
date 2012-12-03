@@ -75,15 +75,15 @@ class TestNuerpy(unittest.TestCase):
         self.equalish_atom(res, 1.2652)
     
     def test_cost_function_weight_decay(self):
-        res = neur.cost_function_weight_decay(2, [self.theta, self.theta2], 1)
-        self.equalish_atom(res, 0.016502)
+        res = neur.cost_function_weight_decay([self.theta, self.theta2], 1)
+        self.equalish_atom(res, 0.03300461)
     
     def test_logistic_squared_distance_with_wd(self):
         h_x = np.array([[0.52596,   0.46349],
                         [0.52596,   0.46350]])
         y = np.array([[1, 0],[1, 0]]) 
         res = neur.logistic_squared_distance_with_wd(h_x, y, [self.theta, self.theta2], 1)
-        self.equalish_atom(res, 1.2817118)
+        self.equalish_atom(res, 1.298214123)
 
     def test_gradient_check(self):
         X = np.array([[1, 2, 3], [2, 3, 4]])
@@ -107,12 +107,38 @@ class TestNuerpy(unittest.TestCase):
     def test_softmax(self):
         #X = np.array([[10, 2, 0], [2, 3, 4]])
         #h_x, a = neur.forward_prop(X, [self.theta, self.theta2])
-        h_x = np.array([[0.9,0.5,0.3],[0.3,0.5,0.9]])
+        h_x = np.array([[0.9,0.5,0.3],[0.1,0.5,0.9]])
+        # print np.exp(h_x)
+        sums = np.sum(np.exp(h_x), axis=1).reshape(len(h_x), 1)
+        divisor = np.dot(sums, np.ones((1,h_x.shape[1])))
+        expected = np.exp(h_x) / divisor
+
         res = neur.softmax(h_x)
         self.equalish(np.sum(res, axis=1), [1,1])
+        self.equalish(expected, res)
 
+
+    def test_cross_entropy_loss(self):
+        s_h_x = np.array([.8, .1, .1])
+        y = np.array([1, 0, 1])
+        expected = -np.sum(y * np.log(s_h_x))
+
+        res = neur.cross_entropy_loss(np.array([s_h_x]), np.array([y]))
+        self.equalish_atom(expected, res)
+
+        s_h_x2 = np.array([.5, .3, .2])
+        y2 = np.array([1, 1, 0])
+        expected2 = -np.sum(y2 * np.log(s_h_x2))
+        res2 = neur.cross_entropy_loss(np.array([s_h_x2]), np.array([y2]))
+        self.equalish_atom(expected2, res2)
+        
+        expected3 = (res + res2) / 2.0
+        res3 = neur.cross_entropy_loss(np.array([s_h_x, s_h_x2]), np.array([y, y2]))
+        self.equalish_atom(expected3, res3)
+
+
+        
     def test_create_dropout_indices(self):
-
         res = neur.create_dropout_indices([self.theta, self.theta2, self.theta3])
         self.assertEqual(3, len(res))
         self.assertEqual(Ellipsis, res[0][1])

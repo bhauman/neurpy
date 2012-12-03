@@ -9,7 +9,7 @@ def map_to_max_binary_result(h_x):
     res = []
     for i in range(len(maxes)):
         res.append(h_x[i].tolist().index(maxes[i]))
-    return all_to_sparse(res, max(res) + 1)
+    return all_to_sparse(res, h_x.shape[1])
     
 def convert_to_sparse(ex, num_class):
     res = [0] * num_class

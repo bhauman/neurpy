@@ -4,7 +4,6 @@ import copy
 import os.path
 import pickle
 
-
 def cross_validation_sets(X,y, pickle_name = False, cache_overwrite = False):
     if pickle_name:
         filename = './random_set_cache/data_' + pickle_name +'.pkl'
@@ -39,6 +38,7 @@ def softmax(inputs):
     res = np.max(inputs, axis=1)
     res = res.repeat(len(inputs[0, :]))
     res.shape = len(inputs), len(inputs[0, :])
+    # this is so that the log function doesn't get out of control
     out =  np.exp(inputs - res)
     rout = np.sum(out, axis=1).repeat(len(inputs[0,:]))
     rout.shape = len(inputs), len(inputs[0, :])
@@ -55,8 +55,9 @@ def forward_prop(x, thetas):
     for i in range(1, num_thetas):
         a[i] = np.hstack([np.ones((len(z[i]),1)), sigmoid(z[i])])
         z[i + 1] = np.dot(a[i], thetas[i].transpose())
-
-    a[num_thetas] = sigmoid(z[num_thetas])
+    # don't sigmoid and softmax !!!
+    #a[num_thetas] = sigmoid(z[num_thetas])
+    a[num_thetas] = softmax(z[num_thetas])
     out = a[num_thetas]
     return out, a
 
@@ -70,15 +71,22 @@ def logistic_squared_distance(h_x, y):
     
     return -1 * (y * np.log(h_x) + (1 - y) * np.log(1 - h_x)).sum() / m
 
-def cost_function_weight_decay(m, thetas, lamb):
+# h_x is intended to be the output of a softmax
+def cross_entropy_loss(h_x, y):
+    return -np.mean(np.sum(y * np.log(h_x), axis=1))
+
+def cost_function_weight_decay(thetas, lamb):
     theta_squared_sum = 0
     for i in range(len(thetas)):
       theta_squared_sum += (thetas[i][:, 1:thetas[i].shape[1]] ** 2).sum() 
-    return (lamb/(2.0 * m)) * theta_squared_sum;
+    return (lamb/2.0) * theta_squared_sum;
+
+def cross_entropy_loss_with_wd(h_x, y, thetas, lamb):
+    return cross_entropy_loss(h_x, y) + cost_function_weight_decay(thetas, lamb)
 
 def logistic_squared_distance_with_wd(h_x, y, thetas, lamb):
     m = h_x.shape[0]
-    return logistic_squared_distance(h_x, y) + cost_function_weight_decay(m, thetas, lamb)
+    return logistic_squared_distance(h_x, y) + cost_function_weight_decay(thetas, lamb)
 
 def logistic_squared_cost_function(X, y, thetas, lamb):
     h_x, a = forward_prop(X, thetas)
@@ -114,7 +122,7 @@ def backprop(activations, y, thetas, lamb):
   for t_layer in range(tL):
     theta_reg = thetas[t_layer].copy()
     theta_reg[:,0] = 0 # zero out first column
-    gradients[t_layer] = theta_derivatives[t_layer] + (lamb / m) * theta_reg
+    gradients[t_layer] = theta_derivatives[t_layer] + lamb * theta_reg
 
   return gradients
 
@@ -203,7 +211,7 @@ def gradient_decent(X, y,
     output_layer_sz = len(y[0])
     #print 'y shape', y.shape
     sizes = [input_layer_sz, hidden_layer_sz, output_layer_sz]
-    if not any(thetas):
+    if len(thetas) == 0:
         thetas = create_initial_thetas(sizes, rand_init_epsilon)
     #for t in thetas:
     #    print t.shape
@@ -228,7 +236,7 @@ def gradient_decent(X, y,
             in_use_thetas = thetas
             in_use_momentum_speeds = momentum_speeds
         h_x, a = forward_prop(X, in_use_thetas)
-        cost = logistic_squared_distance_with_wd(h_x, y, in_use_thetas, wd_coef)
+        cost = cross_entropy_loss_with_wd(h_x, y, in_use_thetas, wd_coef)
         costs.append(cost)
         if X_val.any():
             # lets get the validation cost for the whole model at first
@@ -236,7 +244,7 @@ def gradient_decent(X, y,
             if do_dropout:
                 vthetas = map(lambda th: th * dropout_percentage, thetas)
             vh_x, va = forward_prop(X_val, vthetas)
-            vcost = logistic_squared_distance_with_wd(vh_x, y_val, vthetas, wd_coef)
+            vcost = cross_entropy_loss_with_wd(vh_x, y_val, vthetas, wd_coef)
             val_costs.append(vcost)
         if X_val.any() and do_early_stopping and (vcost < best_so_far['validation_loss']):
             best_so_far['thetas'] = map(lambda x: x.copy(), thetas)

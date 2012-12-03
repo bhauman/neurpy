@@ -22,7 +22,8 @@ class RBM:
         return (layer > rand_layer).astype(int)
         
     def cd1(self, vis_layer):
-        hid_prob_t0   = self.prop_up(self.random_binary_sample(vis_layer))
+        vis_prob      = self.random_binary_sample(vis_layer)
+        hid_prob_t0   = self.prop_up(vis_prob)
         hid_sample_t0 = self.random_binary_sample(hid_prob_t0)
         gradient_t0   = self.goodness_gradient(vis_layer, hid_sample_t0)
         
