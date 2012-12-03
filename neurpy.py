@@ -1,5 +1,5 @@
 import numpy as np
-import gnumpy as gpu
+#import gnumpy as gpu
 import copy
 import os.path
 import pickle
@@ -61,8 +61,8 @@ def forward_prop(x, thetas):
     out = a[num_thetas]
     return out, a
 
-def sigmoid_gpu(z):
-    return 1.0 / (1.0 + gpu.exp(z * -1))
+#def sigmoid_gpu(z):
+#    return 1.0 / (1.0 + gpu.exp(z * -1))
 
 def logistic_squared_distance(h_x, y):
     m = h_x.shape[0]
