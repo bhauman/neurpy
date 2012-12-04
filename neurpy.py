@@ -43,8 +43,10 @@ def softmax(inputs):
     rout = np.sum(out, axis=1).repeat(len(inputs[0,:]))
     rout.shape = len(inputs), len(inputs[0, :])
     return out / rout
-    
-def forward_prop(x, thetas):
+
+
+# doesn't apply sigmoid or softmax to last layer
+def forward_prop_helper(x, thetas):
     rows, columns = x.shape
     num_thetas = len(thetas)
     a = [0] * (num_thetas + 1)
@@ -56,13 +58,25 @@ def forward_prop(x, thetas):
         a[i] = np.hstack([np.ones((len(z[i]),1)), sigmoid(z[i])])
         z[i + 1] = np.dot(a[i], thetas[i].transpose())
     # don't sigmoid and softmax !!!
-    #a[num_thetas] = sigmoid(z[num_thetas])
-    a[num_thetas] = softmax(z[num_thetas])
+    a[num_thetas] = z[num_thetas]
+    #a[num_thetas] = softmax(z[num_thetas])
+    out = a[num_thetas]
+    return out, a    
+    
+# does apply softmax to forward prop output
+def forward_prop(x, thetas):
+    num_thetas = len(thetas)
+    out, a = forward_prop_helper(x, thetas)
+    a[num_thetas] = softmax(a[num_thetas])
     out = a[num_thetas]
     return out, a
 
-#def sigmoid_gpu(z):
-#    return 1.0 / (1.0 + gpu.exp(z * -1))
+def forward_prop_sigmoid(x,thetas):
+    num_thetas = len(thetas)
+    out, a = forward_prop_helper(x, thetas)
+    a[num_thetas] = sigmoid(a[num_thetas])
+    out = a[num_thetas]
+    return out, a
 
 def logistic_squared_distance(h_x, y):
     m = h_x.shape[0]
@@ -260,7 +274,7 @@ def gradient_decent(X, y,
         orig_momentum_speeds = copy.deepcopy(momentum_speeds)
         # update thetas
         gradients = backprop(a, mini_batch_y, in_use_thetas, wd_coef)
-        for ix in range(1,len(in_use_thetas)):
+        for ix in range(len(in_use_thetas)):
             in_use_momentum_speeds[ix] = in_use_momentum_speeds[ix] * momentum_multiplier - gradients[ix]
             in_use_thetas[ix] = in_use_thetas[ix] + learning_rate * in_use_momentum_speeds[ix]
         if do_dropout:
