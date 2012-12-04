@@ -260,7 +260,7 @@ def gradient_decent(X, y,
         orig_momentum_speeds = copy.deepcopy(momentum_speeds)
         # update thetas
         gradients = backprop(a, mini_batch_y, in_use_thetas, wd_coef)
-        for ix in range(len(in_use_thetas)):
+        for ix in range(1,len(in_use_thetas)):
             in_use_momentum_speeds[ix] = in_use_momentum_speeds[ix] * momentum_multiplier - gradients[ix]
             in_use_thetas[ix] = in_use_thetas[ix] + learning_rate * in_use_momentum_speeds[ix]
         if do_dropout:

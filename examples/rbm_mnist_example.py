@@ -55,8 +55,8 @@ def rbm_mnist_example():
                                                     thetas = thetas,
                                                     X_val = X_val, 
                                                     y_val = y_val,
-                                                    do_dropout = True,
-                                                    dropout_percentage = 0.7,
+                                                    #do_dropout = True,
+                                                    #dropout_percentage = 0.7,
                                                     do_early_stopping = True)
 
     h_x, a = neur.forward_prop(X_val, thetas)
