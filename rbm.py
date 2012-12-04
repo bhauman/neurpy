@@ -16,7 +16,12 @@ class RBM:
 
     def goodness_gradient(self, vis_layer, hid_layer):
         return np.dot(hid_layer.astype(float).transpose(), vis_layer) / float(vis_layer.shape[0])
-        
+    
+    def free_energy(self, vis_layer):
+        # calc hidden before sigmoid 
+        x = np.dot(vis_layer, self.weights.transpose())
+        return np.mean(np.sum(np.log(np.exp(x) + 1), axis=1))
+    
     def random_binary_sample(self, layer):
         rand_layer = np.random.rand(layer.shape[0], layer.shape[1])
         return (layer > rand_layer).astype(int)
@@ -43,8 +48,9 @@ class RBM:
         hidden_layer = self.prop_up([input_layer])
         return (self.prop_down(hidden_layer) > 0.5).astype(int)
 
-    def optimize(self, train, iters = 100, learning_rate = 0.2):
+    def optimize(self, train, iters = 100, learning_rate = 0.2, val_set = []):
         costs = []
+        vcosts = []
         m = len(train)
         momentum_speed = np.zeros_like(self.weights)
         mini_batch_size = 100
@@ -53,12 +59,15 @@ class RBM:
             mini_batch = train[start_of_next_mini_batch:(start_of_next_mini_batch + mini_batch_size), :]
             start_of_next_mini_batch = (start_of_next_mini_batch + mini_batch_size) % m
             gradient, hid_prob = self.cd1(mini_batch)
-            hid_sample = self.random_binary_sample(hid_prob)
-            cost = self.goodness(mini_batch, hid_sample)
+            print mini_batch.shape
+            cost = self.goodness(mini_batch, hid_prob)
             costs.append(cost)
+            print "energy", cost
+            if len(val_set) > 100:
+                print "train free energy", self.free_energy(train[0:100,:])
+                print "val   free energy", self.free_energy(val_set)
             momentum_speed = momentum_speed * 0.9 + gradient;
             self.weights = self.weights + (momentum_speed * learning_rate)
-            print "energy", cost
             print "validate squared_error",  self.validate(train)
 
         return costs

@@ -42,6 +42,10 @@ class TestRBM(unittest.TestCase):
     def test_goodness(self):
         res = self.rbm.goodness(self.visible_layer, self.hidden_layer)
         self.assertTrue(res, 1.489853)
+
+    def test_free_energy(self):
+        res = self.rbm.free_energy(self.visible_layer)
+        print res
    
     def test_goodness_gradient(self):
         res = self.rbm.goodness_gradient(self.visible_layer, self.hidden_layer)

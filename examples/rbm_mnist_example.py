@@ -7,7 +7,7 @@ import cProfile
 import unittest
 import neurpy as neur
 import numpy as np
-import rbm_bias as rbm
+import rbm #_bias as rbm
 import util as ut
 from sklearn import datasets
 from sklearn import preprocessing as pre
@@ -31,31 +31,32 @@ def rbm_mnist_example():
     bm = rbm.RBM(256, hid_layer)
     #exit()
     
-    costs = bm.optimize(X, 400, 0.2)
+    #costs = bm.optimize(X, 370, 0.2, val_set = X_val)
     print "validate squared_error",  bm.validate(X_val)
 
-    filename = './random_set_cache/data_rbm_run_with_bias.pkl'
+    filename = './random_set_cache/data_rbm_run_without_bias.pkl'
 
     #first_layer_weights = np.hstack([np.zeros((hid_layer,1)), bm.weights]) # without bias
-    first_layer_weights = np.hstack([bm.hidden_bias.reshape(hid_layer, 1), bm.weights]) # with bias
+    #first_layer_weights = np.hstack([bm.hidden_bias.reshape(hid_layer, 1), bm.weights]) # with bias
 
     #pickle.dump(first_layer_weights, open(filename, 'w'))
 
     #exit()
 
-    #first_layer_weights = pickle.load(open(filename, 'r'))
+    first_layer_weights = pickle.load(open(filename, 'r'))
     
     thetas  = neur.create_initial_thetas([64, hid_layer, 10], 0.12)
     thetas[0] =  first_layer_weights
 
     thetas, costs, val_costs = neur.gradient_decent(X, y,
-                                                    learning_rate = 0.1,
+                                                    learning_rate = 0.05,
                                                     hidden_layer_sz = hid_layer,
-                                                    iter = 800,
+                                                    iter = 3000,
                                                     thetas = thetas,
                                                     X_val = X_val, 
                                                     y_val = y_val,
-                                                    #do_dropout = True,
+                                                    do_dropout = True,
+                                                    dropout_percentage = 0.7,
                                                     do_early_stopping = True)
 
     h_x, a = neur.forward_prop(X_val, thetas)

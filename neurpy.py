@@ -205,7 +205,7 @@ def gradient_decent(X, y,
                     dropout_percentage = 0.9,
                     thetas = [],
                     X_val = [], y_val = []):
-    
+    m = len(X)
     # one hidden layer
     input_layer_sz = len(X[0])
     output_layer_sz = len(y[0])
@@ -223,7 +223,13 @@ def gradient_decent(X, y,
       best_so_far = {'thetas': [], 'validation_loss': 100000, 'after_n_iters': 0}
     selected_indices = []
     orig_learning_rate = learning_rate
+    mini_batch_size = 100
+    start_of_next_mini_batch = 0
     for i in range(iter):
+        mini_batch = X[start_of_next_mini_batch:(start_of_next_mini_batch + mini_batch_size), :]
+        mini_batch_y = y[start_of_next_mini_batch:(start_of_next_mini_batch + mini_batch_size), :]
+        start_of_next_mini_batch = (start_of_next_mini_batch + mini_batch_size) % m
+
         if do_learning_adapt:
             learning_rate = orig_learning_rate * 1.1 * np.log(iter - i) / np.log(iter) 
         # set up thetas for dropout
@@ -235,8 +241,8 @@ def gradient_decent(X, y,
         else:
             in_use_thetas = thetas
             in_use_momentum_speeds = momentum_speeds
-        h_x, a = forward_prop(X, in_use_thetas)
-        cost = cross_entropy_loss_with_wd(h_x, y, in_use_thetas, wd_coef)
+        h_x, a = forward_prop(mini_batch, in_use_thetas)
+        cost = cross_entropy_loss_with_wd(h_x, mini_batch_y, in_use_thetas, wd_coef)
         costs.append(cost)
         if X_val.any():
             # lets get the validation cost for the whole model at first
@@ -253,7 +259,7 @@ def gradient_decent(X, y,
         orig_thetas = thetas    
         orig_momentum_speeds = copy.deepcopy(momentum_speeds)
         # update thetas
-        gradients = backprop(a, y, in_use_thetas, wd_coef)
+        gradients = backprop(a, mini_batch_y, in_use_thetas, wd_coef)
         for ix in range(len(in_use_thetas)):
             in_use_momentum_speeds[ix] = in_use_momentum_speeds[ix] * momentum_multiplier - gradients[ix]
             in_use_thetas[ix] = in_use_thetas[ix] + learning_rate * in_use_momentum_speeds[ix]
