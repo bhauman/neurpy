@@ -29,12 +29,9 @@ def autoencoder_example():
     hid_layer = 300
 
     autoenc = ac.Autoencoder(X.shape[1], hid_layer, denoise = True, denoise_percent = 0.5)
-    costs, val_costs = autoenc.optimize(X, iters = 3000, learning_rate = 0.05, val_set = X_val)
+    costs, val_costs = autoenc.optimize(X, iters = 1500, learning_rate = 0.1, val_set = X_val)
 
-    h_x, a = autoenc.forward_prop(X_val)
-    print h_x[0:3,0:10]
-    print X_val[0:3,0:10]
-
+    print "::: first encoding done :::" 
     print "training error:",   costs[-1:][0]
     print "validation error:", val_costs[-1:][0]
     print "lowest validation error:", min(val_costs)
@@ -43,6 +40,36 @@ def autoencoder_example():
     plt.legend()
     plt.ylabel('error rate')
     plt.show()        
+
+
+    thetas  = neur.create_initial_thetas([64, hid_layer, 10], 0.12)
+    thetas[0] = autoenc.encode_weights
+
+    thetas, costs, val_costs = neur.gradient_decent(X, y,
+                                                    learning_rate = 0.01,
+                                                    hidden_layer_sz = hid_layer,
+                                                    iter = 5000,
+                                                    thetas = thetas,
+                                                    X_val = X_val, 
+                                                    y_val = y_val,
+                                                    do_dropout = True,
+                                                    dropout_percentage = 0.9,
+                                                    do_early_stopping = True)
+
+    h_x, a = neur.forward_prop(X_val, thetas)
+    print "percentage correct predictions: ", ut.percent_equal(ut.map_to_max_binary_result(h_x), y_val)
+    print "training error:",   costs[-1:][0]
+    print "validation error:", val_costs[-1:][0]
+    print "lowest validation error:", min(val_costs)
+    plt.plot(costs, label='cost')
+    plt.plot(val_costs, label='val cost')
+    plt.legend()
+    plt.ylabel('error rate')
+    plt.show()        
+
+
+    
+
 
 #    set = X[(np.random.rand(10) * len(X)).astype(int), :]
 #    for x in set:

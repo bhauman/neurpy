@@ -9,6 +9,12 @@ class Autoencoder:
         self.denoise = denoise
         self.corrupt = denoise_percent
 
+    def encode(self, x):
+        # add ones
+        m = len(x)
+        x = np.hstack([np.ones((m,1)), x])
+        return neur.sigmoid(np.dot(x, self.encode_weights.transpose()))
+
     def forward_prop(self, x):
         return neur.forward_prop_sigmoid(x, [self.encode_weights, self.decode_weights])
 
@@ -18,7 +24,7 @@ class Autoencoder:
     def validate(self, result, orig):
         return np.sum((result - orig) ** 2) / (2 *  len(result))
 
-    def optimize(self, train, iters = 100, learning_rate = 0.2, val_set = []):
+    def optimize(self, train, target = None, iters = 100, learning_rate = 0.2, val_set = []):
         costs = []
         vcosts = []
         m = len(train)
@@ -26,15 +32,19 @@ class Autoencoder:
         momentum_speed_d = np.zeros_like(self.decode_weights)
         mini_batch_size = 100
         start_of_next_mini_batch = 0
+        if target == None:
+            target = train
         for i in range(iters):
             mini_batch = train[start_of_next_mini_batch:(start_of_next_mini_batch + mini_batch_size), :]
+            mini_batch_y = target[start_of_next_mini_batch:(start_of_next_mini_batch + mini_batch_size), :]
             start_of_next_mini_batch = (start_of_next_mini_batch + mini_batch_size) % m
             
             if self.denoise:
-                mini_batch = mini_batch * np.random.binomial(1, 1.0-self.corrupt, size=mini_batch.shape)
+                mini_batch   = mini_batch * np.random.binomial(1, 1.0-self.corrupt, size=mini_batch.shape)
+                #mini_batch_y = mini_batch_y * np.random.binomial(1, 1.0-self.corrupt, size=mini_batch.shape)
 
             h_x, a = self.forward_prop(mini_batch)
-            cost = self.validate(h_x, mini_batch)
+            cost = self.validate(h_x, mini_batch_y)
             costs.append(cost)            
 
             if val_set.any():
@@ -42,7 +52,7 @@ class Autoencoder:
                 vcost = self.validate(vh_x, val_set)
                 vcosts.append(vcost)                
             
-            gradients = self.backprop(a, mini_batch)
+            gradients = self.backprop(a, mini_batch_y)
             
             momentum_speed_e = momentum_speed_e * 0.9 - gradients[0];
             self.encode_weights = self.encode_weights + (momentum_speed_e * learning_rate)
