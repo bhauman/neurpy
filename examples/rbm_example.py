@@ -3,6 +3,7 @@ sys.path[:0] = '../../'
 
 import pickle
 import cProfile
+from itertools import *
 
 import unittest
 import neurpy as neur
@@ -27,28 +28,29 @@ def rbm_example():
     bm = rbm.RBM(64, hid_layer)
     #exit()
     
-    #costs = bm.optimize(X, 1000, 0.08)
-    #print "validate squared_error",  bm.validate(X_val)
-
+    costs = bm.optimize(neur.mini_batch_generator(X), 2000, 0.08)
+    print "validate squared_error",  bm.validate(X_val)
+    #exit()
 
     filename = './random_set_cache/data_rbm_run.pkl'
 
-    #first_layer_weights = np.hstack([np.zeros((hid_layer,1)), bm.weights])
+    first_layer_weights = np.hstack([np.zeros((hid_layer,1)), bm.weights])
     #pickle.dump(first_layer_weights, open(filename, 'w'))
 
-    first_layer_weights = pickle.load(open(filename, 'r'))
+    # first_layer_weights = pickle.load(open(filename, 'r'))
 
     thetas  = neur.create_initial_thetas([64, hid_layer, 10], 0.12)
     thetas[0] =  first_layer_weights
 
-    thetas, costs, val_costs = neur.gradient_decent(X, y,
-                                                    learning_rate = 0.35,
-                                                    hidden_layer_sz = hid_layer,
-                                                    iter = 2000,
-                                                    thetas = thetas, 
-                                                    X_val = X_val, 
-                                                    y_val = y_val,
-                                                    do_early_stopping = True)
+    thetas, costs, val_costs = neur.gradient_decent_gen(izip(neur.mini_batch_generator(X, 10), 
+                                                             neur.mini_batch_generator(y, 10)),
+                                                        learning_rate = 0.05,
+                                                        hidden_layer_sz = hid_layer,
+                                                        iter = 8000,
+                                                        thetas = thetas, 
+                                                        X_val = X_val, 
+                                                        y_val = y_val,
+                                                        do_early_stopping = True)
 
     h_x, a = neur.forward_prop(X_test, thetas)
     print "percentage correct predictions: ", ut.percent_equal(ut.map_to_max_binary_result(h_x), y_test)

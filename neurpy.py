@@ -3,6 +3,8 @@ import numpy as np
 import copy
 import os.path
 import pickle
+import pandas as pd
+
 
 def cross_validation_sets(X,y, pickle_name = False, cache_overwrite = False):
     if pickle_name:
@@ -44,7 +46,6 @@ def softmax(inputs):
     rout.shape = len(inputs), len(inputs[0, :])
     return out / rout
 
-
 # doesn't apply sigmoid or softmax to last layer
 def forward_prop_helper(x, thetas):
     rows, columns = x.shape
@@ -54,6 +55,23 @@ def forward_prop_helper(x, thetas):
     a[0] = np.hstack([np.ones((rows, 1)), x])
     
     z[1] = np.dot(a[0], thetas[0].transpose())
+    for i in range(1, num_thetas):
+        a[i] = np.hstack([np.ones((len(z[i]),1)), sigmoid(z[i])])
+        z[i + 1] = np.dot(a[i], thetas[i].transpose())
+    # don't sigmoid and softmax !!!
+    a[num_thetas] = z[num_thetas]
+    #a[num_thetas] = softmax(z[num_thetas])
+    out = a[num_thetas]
+    return out, a    
+
+def forward_prop_helper_separate_bias(x, thetas, biases):
+    rows, columns = x.shape
+    num_thetas = len(thetas)
+    a = [0] * (num_thetas + 1)
+    z = [0] * (num_thetas + 1)
+    a[0] = x
+    
+    z[1] = np.dot(a[0], thetas[0].transpose()) + biases[0].repeat(len(x)).reshape(len(biases[0]), len(x)).transpose()
     for i in range(1, num_thetas):
         a[i] = np.hstack([np.ones((len(z[i]),1)), sigmoid(z[i])])
         z[i + 1] = np.dot(a[i], thetas[i].transpose())
@@ -206,23 +224,31 @@ def create_initial_thetas(layer_sizes, epsilon):
         thetas.append(rand_init_theta(layer_sizes[i], layer_sizes[i + 1], epsilon))
     return thetas
 
-def gradient_decent(X, y, 
-                    hidden_layer_sz = 2, 
-                    iter = 1000, 
-                    wd_coef = 0.0,
-                    learning_rate = 0.35, 
-                    momentum_multiplier = 0.9,
-                    rand_init_epsilon = 0.12,
-                    do_early_stopping = False,
-                    do_dropout = False,
-                    do_learning_adapt = False,
-                    dropout_percentage = 0.9,
-                    thetas = [],
-                    X_val = [], y_val = []):
-    m = len(X)
-    # one hidden layer
-    input_layer_sz = len(X[0])
-    output_layer_sz = len(y[0])
+def gradient_decent(X, y, **kwargs):
+    X_iter = mini_batch_generator(X, 100)
+    y_iter = mini_batch_generator(y, 100)
+    gradient_decent_gen(X_iter, y_iter, **kwargs)
+
+
+def gradient_decent_gen(X_y_iter,
+                        hidden_layer_sz = 2, 
+                        iter = 1000, 
+                        wd_coef = 0.0,
+                        learning_rate = 0.35, 
+                        momentum_multiplier = 0.9,
+                        rand_init_epsilon = 0.12,
+                        do_early_stopping = False,
+                        do_dropout = False,
+                        do_learning_adapt = False,
+                        dropout_percentage = 0.9,
+                        thetas = [],
+                        X_val = [], y_val = []):
+
+    mini_batch, mini_batch_y = X_y_iter.next()
+
+    input_layer_sz = mini_batch.shape[1]
+    output_layer_sz = mini_batch_y.shape[1]
+
     #print 'y shape', y.shape
     sizes = [input_layer_sz, hidden_layer_sz, output_layer_sz]
     if len(thetas) == 0:
@@ -237,13 +263,8 @@ def gradient_decent(X, y,
       best_so_far = {'thetas': [], 'validation_loss': 100000, 'after_n_iters': 0}
     selected_indices = []
     orig_learning_rate = learning_rate
-    mini_batch_size = 100
-    start_of_next_mini_batch = 0
-    for i in range(iter):
-        mini_batch = X[start_of_next_mini_batch:(start_of_next_mini_batch + mini_batch_size), :]
-        mini_batch_y = y[start_of_next_mini_batch:(start_of_next_mini_batch + mini_batch_size), :]
-        start_of_next_mini_batch = (start_of_next_mini_batch + mini_batch_size) % m
 
+    for i in range(iter):
         if do_learning_adapt:
             learning_rate = orig_learning_rate * 1.1 * np.log(iter - i) / np.log(iter) 
         # set up thetas for dropout
@@ -270,8 +291,6 @@ def gradient_decent(X, y,
             best_so_far['thetas'] = map(lambda x: x.copy(), thetas)
             best_so_far['validation_loss'] = vcost
             best_so_far['after_n_iters'] = i
-        orig_thetas = thetas    
-        orig_momentum_speeds = copy.deepcopy(momentum_speeds)
         # update thetas
         gradients = backprop(a, mini_batch_y, in_use_thetas, wd_coef)
         for ix in range(len(in_use_thetas)):
@@ -280,12 +299,40 @@ def gradient_decent(X, y,
         if do_dropout:
             thetas = recover_dropped_out_thetas(thetas, in_use_thetas, selected_indices)
             momentum_speeds = recover_dropped_out_thetas(momentum_speeds, in_use_momentum_speeds, selected_indices)
+        print "Batch: {0} cost: {1} vcost: {2}".format(i, cost, vcost)
+        mini_batch, mini_batch_y = X_y_iter.next()
+
     if do_early_stopping and (len(best_so_far['thetas']) > 0):
         thetas = best_so_far['thetas']
         print 'Early stopping: validation loss was lowest after ', best_so_far['after_n_iters'], ' iterations. We chose the model that we had then.\n'
     if do_dropout:
         thetas = map(lambda th: th * dropout_percentage, thetas)
     return thetas, costs, val_costs
+
+def mini_batch_gen_from_file(filename, mini_batch_size = 100, sep=','):
+    while True:
+        tp = pd.read_csv(filename, iterator=True, chunksize=1000, header=None,sep=sep)
+        for chunk in tp:
+            ch = np.array(chunk)
+            for start in range(0,chunk.shape[0], mini_batch_size):
+                yield ch[start:(start + mini_batch_size)]
+
+def split_xy(gen, split_index, apply_x=None, apply_y=None):
+    apply_x = (lambda x: x) if not apply_x else apply_x
+    apply_y = (lambda x: x) if not apply_y else apply_y
+    for chunk in gen:
+        yield apply_x(chunk[:,:split_index]), apply_y(chunk[:,split_index:])
+        
+def just_x(gen):
+    for x in gen:
+        yield x[0]
+
+
+def mini_batch_generator(source, mini_batch_size = 100):
+    start_of_next_mini_batch = 0
+    while True:
+        yield source[start_of_next_mini_batch:(start_of_next_mini_batch + mini_batch_size), :]
+        start_of_next_mini_batch = (start_of_next_mini_batch + mini_batch_size) % len(source)
 
 def gradient_check(X, y, thetas, cost_func):
     epsilon = 0.0001

@@ -3,7 +3,7 @@ import neurpy as neur
 
 class RBM:
     def __init__(self, visible_size, hidden_size):
-        self.weights = ((np.random.rand(hidden_size, visible_size) * 2) - 1) * 0.1
+        self.weights = ((np.random.rand(hidden_size, visible_size) * 2) - 1) * 0.001
 
     def prop_up(self, vis_layer):
         return neur.sigmoid(np.dot(vis_layer, self.weights.transpose()))
@@ -51,24 +51,27 @@ class RBM:
     def optimize(self, train, iters = 100, learning_rate = 0.2, val_set = []):
         costs = []
         vcosts = []
-        m = len(train)
+        first_mini_batch = []
+        #m = len(train)
         momentum_speed = np.zeros_like(self.weights)
-        mini_batch_size = 100
-        start_of_next_mini_batch = 0
+        #mini_batch_size = 100
+        #start_of_next_mini_batch = 0
         for i in range(iters):
-            mini_batch = train[start_of_next_mini_batch:(start_of_next_mini_batch + mini_batch_size), :]
-            start_of_next_mini_batch = (start_of_next_mini_batch + mini_batch_size) % m
+            #mini_batch = train[start_of_next_mini_batch:(start_of_next_mini_batch + mini_batch_size), :]
+            #start_of_next_mini_batch = (start_of_next_mini_batch + mini_batch_size) % m
+            mini_batch = train.next()
+            if len(first_mini_batch) == 0:
+                first_mini_batch = mini_batch
             gradient, hid_prob = self.cd1(mini_batch)
-            print mini_batch.shape
             cost = self.goodness(mini_batch, hid_prob)
             costs.append(cost)
             print "energy", cost
-            if len(val_set) > 100:
-                print "train free energy", self.free_energy(train[0:100,:])
+            if len(val_set) > 10:
+                print "train free energy", self.free_energy(first_mini_batch)
                 print "val   free energy", self.free_energy(val_set)
             momentum_speed = momentum_speed * 0.9 + gradient;
             self.weights = self.weights + (momentum_speed * learning_rate)
-            print "validate squared_error",  self.validate(train)
+            print "validate squared_error",  self.validate(first_mini_batch)
 
         return costs
     

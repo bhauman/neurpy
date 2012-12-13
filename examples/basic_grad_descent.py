@@ -2,6 +2,8 @@ import sys
 sys.path[:0] = '../../'
 import cProfile
 
+from itertools import *
+
 import unittest
 import neurpy as neur
 import numpy as np
@@ -21,9 +23,10 @@ def basic_gradient_descent():
     y = ut.all_to_sparse( digits.target, max(digits.target) + 1 )
     X, y, X_val, y_val, X_test, y_test = neur.cross_validation_sets(np.array(X), np.array(y), "basic_grad_descent_digits")
     X_val = np.vstack([X_val, X_test]) 
-    y_val = np.vstack([y_val, y_test]) 
-    thetas, costs, val_costs = neur.gradient_decent(np.array(X), 
-                                                    np.array(y),
+    y_val = np.vstack([y_val, y_test])
+
+    thetas, costs, val_costs = neur.gradient_decent_gen(izip(neur.mini_batch_generator(X),
+                                                             neur.mini_batch_generator(y)),
                                                     #hidden_layer_sz = 11,
                                                     hidden_layer_sz = 100,
                                                     iter = 1500,
@@ -48,7 +51,6 @@ def basic_gradient_descent():
     plt.legend()
     plt.ylabel('error rate')
     plt.show()        
-
  
 basic_gradient_descent()
 #cProfile.run('basic_gradient_descent()', 'profile.stats')
