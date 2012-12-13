@@ -25,18 +25,18 @@ def basic_gradient_descent():
     X_val = np.vstack([X_val, X_test]) 
     y_val = np.vstack([y_val, y_test])
 
-    thetas, costs, val_costs = neur.gradient_decent_gen(izip(neur.mini_batch_generator(X),
-                                                             neur.mini_batch_generator(y)),
+    thetas, costs, val_costs = neur.gradient_decent_gen(izip(neur.mini_batch_generator(X, 10),
+                                                             neur.mini_batch_generator(y, 10)),
                                                     #hidden_layer_sz = 11,
                                                     hidden_layer_sz = 100,
-                                                    iter = 1500,
+                                                    iter = 1000,
                                                     wd_coef = 0.0,
                                                     learning_rate = 0.1,
                                                     momentum_multiplier = 0.9,
                                                     rand_init_epsilon = 0.012,
                                                     do_early_stopping = True,
-                                                    do_dropout = True,
-                                                    dropout_percentage = 0.8,
+                                                    #do_dropout = True,
+                                                    #dropout_percentage = 0.8,
                                                     #do_learning_adapt = True,
                                                     X_val = np.array(X_val),
                                                     y_val = np.array(y_val))
